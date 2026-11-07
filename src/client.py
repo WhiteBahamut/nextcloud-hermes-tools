@@ -20,7 +20,7 @@ import os
 import re
 import threading
 import time
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 REQUIRED_ENV = ("TALK_SERVER_URL", "TALK_USER", "TALK_APP_PASSWORD")
 
@@ -117,8 +117,18 @@ def configured() -> bool:
 
 
 def enc_path(path: str) -> str:
-    """URL-encode every segment (safe="") and rejoin with '/'; keeps leading '/'."""
-    return "/".join(quote(seg, safe="") for seg in str(path).split("/"))
+    """URL-encode every segment (safe="") and rejoin with '/'; keeps leading '/'.
+
+    Dot segments ('.'/'..', including percent-encoded forms) are rejected:
+    httpx and the web server normalize them, which would let a caller escape
+    the DAV root (e.g. files_dav("../../..") -> "/") with bot credentials.
+    """
+    out = []
+    for seg in str(path).split("/"):
+        if unquote(seg) in (".", ".."):
+            raise NcError(400, f"path traversal rejected: {unquote(seg)!r} segment")
+        out.append(quote(seg, safe=""))
+    return "/".join(out)
 
 
 def abs_url(path: str) -> str:

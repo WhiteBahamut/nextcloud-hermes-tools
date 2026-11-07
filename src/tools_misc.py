@@ -170,6 +170,8 @@ def _trash_empty(args):
 def _resolve_file_id(args) -> str:
     file_id = str(args.get("file_id") or "")
     if file_id:
+        if not file_id.isdigit():
+            raise client.NcError(400, "file_id must be numeric")
         return file_id
     path = args.get("path") or ""
     if not path:
@@ -248,7 +250,10 @@ def _comments(args):
 def _ocs(args):
     method = str(args.get("method") or "GET").upper()
     path = str(args.get("path") or "")
-    if path.startswith("/") or any(seg == ".." for seg in path.split("/")):
+    if path.startswith("/") or any(
+        unquote(seg) == ".." or "/" in unquote(seg) or "\\" in unquote(seg)
+        for seg in path.split("/")
+    ):
         return client.err(f"traversal rejected: {path!r}")  # never a request
     if method not in ("GET", "POST"):
         return client.err(f"method must be GET or POST, got {method!r}")
