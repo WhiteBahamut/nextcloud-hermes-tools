@@ -83,27 +83,86 @@ Every call returns a JSON string. Read-only calls pass through the normal approv
 
 ## Configuration
 
-Credentials come from the active profile's `.env`. `NC_*` variables are
-preferred; the `TALK_*` names (same as the Talk platform plugin) work as a
-fallback — each variable resolves independently, first non-empty wins:
+Configuration is per profile: credentials go in the active profile's `.env`,
+optional tuning goes in `config.yaml` under the plugin's settings. Every tool
+carries `check_fn=client.configured`, which fails closed — until all three
+credentials resolve, the tools are inert.
+
+### 1. Create a bot account and an app password
+
+In Nextcloud, log in as the dedicated bot account → **Settings → Security →
+App passwords** → create one (e.g. `hermes`). Use that app password below —
+never the login password. It is revocable per app at any time without touching
+the account password.
+
+### 2. Credentials in the active profile's `.env`
 
 ```bash
+# the active profile's .env
 NC_SERVER_URL=https://cloud.example.com
-NC_USER=Hermes            # bot account per profile
-NC_APP_PASSWORD=...       # app password, never the login password
-# TALK_SERVER_URL / TALK_USER / TALK_APP_PASSWORD also accepted (fallback)
+NC_USER=Hermes            # bot account, one per profile
+NC_APP_PASSWORD=xxxxx-xxxxx-xxxxx-xxxxx-xxxxx   # app password, never the login password
+# TALK_SERVER_URL / TALK_USER / TALK_APP_PASSWORD also accepted as fallback
 ```
 
-Optional plugin settings (`plugins.entries.nextcloud-tools.settings.<key>`):
+`NC_*` is the preferred spelling; the `TALK_*` names — re-used from the
+[`nextcloud-talk-platform`](https://hermes-agent.nousresearch.com/docs/plugins/nextcloud-talk-platform)
+plugin, so one `.env` can serve both — are the fallback. Each variable resolves
+independently — `NC_*` first,
+and an empty `NC_*` falls through to its `TALK_*` counterpart (first non-empty
+wins). Secrets are read profile-scoped via `agent.secret_scope.get_secret_str`
+(never `os.getenv`), so one profile's token can never be used by another;
+one plugin copy per profile (`~/.hermes/plugins/`) keeps profiles isolated.
+
+### 3. Enable the plugin and check the toolset
+
+See [Install](#install). Enabling `nextcloud-tools` turns the `nextcloud`
+toolset on by default; if the profile has a saved tool selection, make sure
+`nextcloud` is checked in `hermes tools`.
+
+### 4. Optional settings in `config.yaml`
 
 ```yaml
-ca_bundle: ""            # PEM path for an internal CA; empty = system CAs
-default_search_providers: ["files", "fulltextsearch", "talk-message", "calendar", "tasks"]
-max_results: 20
-request_timeout: 30.0
-talk_include_dms: false  # include 1:1 DM rooms in nc_talk_rooms
-talk_skip_tokens: []     # room tokens always excluded (gateway-polled DM)
-hard_block_destructive: false  # true = hard-block destructive ops instead of approval gate
+plugins:
+  enabled: ["nextcloud-tools"]
+  entries:
+    nextcloud-tools:
+      settings:
+        ca_bundle: ""            # PEM path for an internal CA; empty = system CAs
+        default_search_providers: ["files", "fulltextsearch", "talk-message", "calendar", "tasks"]
+        max_results: 20
+        request_timeout: 30.0
+        talk_include_dms: false  # include 1:1 DM rooms in nc_talk_rooms
+        talk_skip_tokens: []     # room tokens always excluded (gateway-polled DM)
+        hard_block_destructive: false  # true = hard-block destructive ops instead of approval gate
+```
+
+Settings are read fresh on every call — no restart needed.
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `ca_bundle` | str | `""` | Path to a PEM CA bundle for servers with an internal CA; empty = system CAs |
+| `default_search_providers` | list | `["files", "fulltextsearch", "talk-message", "calendar", "tasks"]` | Providers queried by `nc_search` when its `providers` argument is empty |
+| `max_results` | int | `20` | Per-provider result cap for `nc_search` when its `limit` is 0 |
+| `request_timeout` | float | `30.0` | HTTP request timeout (s); changing it — or rotating the app password — rebuilds the client immediately, no stale auth |
+| `talk_include_dms` | bool | `false` | Include 1:1 DM rooms in `nc_talk_rooms` |
+| `talk_skip_tokens` | list | `[]` | Talk room tokens always excluded from `nc_talk_rooms` (e.g. the gateway-polled DM) |
+| `hard_block_destructive` | bool | `false` | `true` = destructive ops hard-blocked by the `pre_tool_call` hook instead of routed to the approval gate |
+
+### 5. Verify the setup
+
+```bash
+hermes plugins doctor nextcloud-tools   # validate discovery + registration
+hermes tools                            # confirm the "nextcloud" toolset is checked
+```
+
+Then a read-only smoke test from the agent — every call returns a JSON string,
+`ok: false` + `error` on failure (credentials, rejected path traversal, server
+error; secrets are redacted from error strings):
+
+```
+nc_file_list(path="/")
+nc_search(term="quarterly report")
 ```
 
 ## Security
