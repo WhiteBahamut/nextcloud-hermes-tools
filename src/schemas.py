@@ -85,7 +85,7 @@ NC_SEARCH = _s(
     ["term"],
 )
 NC_FILE_SEARCH = _s(
-    "Filename search inside a folder subtree (PROPFIND Depth infinity + local case-insensitive filter; server-side DAV SEARCH is not implemented).",
+    "Filename search inside a folder subtree (PROPFIND Depth infinity + local case-insensitive filter; server-side DAV SEARCH is not implemented). Downloads the whole subtree — on large trees prefer nc_search with the files provider.",
     {
         "term": {"type": "string"},
         "path": {**PATH, "default": "/"},
