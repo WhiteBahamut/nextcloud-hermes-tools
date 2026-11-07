@@ -259,16 +259,25 @@ def _retryable(exc) -> bool:
     return isinstance(exc, (httpx.ConnectError, httpx.ReadTimeout, httpx.RemoteProtocolError))
 
 
+RETRY_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "PROPFIND", "REPORT"})
+
+
 def request(method, path, *, params=None, data=None, json_body=None, content=None, headers=None):
-    """One HTTP request; retries once (0.5 s backoff) on connect/read/protocol errors."""
+    """One HTTP request; retries once (0.5 s backoff) on connect/read/protocol errors.
+
+    Only safe methods (GET/HEAD/OPTIONS/PROPFIND/REPORT) are retried — a dropped
+    connection after server-side processing must not re-send a write (PUT/POST/
+    DELETE/MOVE/...) blindly.
+    """
     client = get_client()
+    safe = method.upper() in RETRY_SAFE_METHODS
     for attempt in (0, 1):
         try:
             return client.request(
                 method, path, params=params, data=data, json=json_body, content=content, headers=headers
             )
         except Exception as exc:
-            if attempt == 1 or not _retryable(exc):
+            if attempt == 1 or not safe or not _retryable(exc):
                 raise
             time.sleep(0.5)
 
