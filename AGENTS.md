@@ -75,24 +75,7 @@ surrounding style by hand. Every module MUST start with
 
 ## Adding a new `nc_*` tool
 
-1. **Research the Nextcloud API first.** Look the feature up in the official Nextcloud
-   developer documentation (Server Developer Manual + the relevant app's OCS/REST API
-   reference) and confirm against the target server version: HTTP method, exact path
-   (WebDAV `/remote.php/dav/...` or OCS `/ocs/v2.php/...`), request params/body,
-   response shape (incl. the OCS `{"ocs": {"meta", "data"}}` envelope), and server
-   quirks. Never guess an endpoint from memory. Record the exact endpoint in the new
-   `src/tools_*.py` module docstring — every existing module does this (e.g.
-   `tools_talk.py:1` cites ``OCS `/ocs/v2.php/apps/spreed/api/v4/` ``).
-2. Add its JSON schema in `src/schemas.py` using `_s(...)`.
-3. Implement the handler in the matching `src/tools_*.py`, wrapped with `client.tool(...)`.
-4. Append `("nc_new", schemas.NC_NEW, client.tool(_new))` to that module's `TOOLS` list.
-5. Add `nc_new` to `provides_tools` in `plugin.yaml`.
-6. Classify it in `src/guardrails.py` — READ_ONLY / WRITES / DESTRUCTIVE frozenset, or the
-   arg-dispatch branch if classification depends on args (like `nc_comments` / `nc_ocs`).
-7. Add tests in `tests/test_<area>.py` using the `nc` + `call` fixtures from
-   `conftest.py`; assert on `nc.requests` too. For a write, also test the read-back
-   verification path including the mismatch case.
-8. Run the commands under "Do this first"; keep one logical change per PR.
+See the `nc-add-tool` skill (`.omp/skills/nc-add-tool/SKILL.md`).
 
 ## Git
 
