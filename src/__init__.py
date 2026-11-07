@@ -25,6 +25,7 @@ def register(ctx):
     )
 
     client.configure(ctx)
+    disabled = {str(t) for t in (ctx.get_config("disabled_tools", []) or [])}
     for module in (
         tools_files,
         tools_search,
@@ -36,6 +37,8 @@ def register(ctx):
         tools_misc,
     ):
         for name, schema, handler in module.TOOLS:
+            if name in disabled:
+                continue
             ctx.register_tool(
                 name=name,
                 toolset=TOOLSET,

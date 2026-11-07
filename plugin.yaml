@@ -1,12 +1,12 @@
 name: nextcloud-tools
-version: 0.1.0
+version: 0.2.0
 description: >-
   Nextcloud toolset for Hermes Agent: 43 tools against one Nextcloud server -
   files (WebDAV), unified/full-text search, shares, Talk, calendar, tasks,
   contacts, notes, activity, notifications, tags, trashbin, comments and a
   generic OCS escape hatch. All handlers return JSON strings; writes are
   read-back verified and gated by a pre_tool_call approval hook.
-author: omp
+author: WhiteBahamut
 license: MIT
 requires_env:
   # NC_* preferred; TALK_* (Talk platform plugin names) accepted as fallback
@@ -83,6 +83,10 @@ config_schema:
     type: list
     default: ["files", "fulltextsearch", "talk-message", "calendar", "tasks"]
     description: Search providers queried by nc_search when its `providers` argument is empty.
+  disabled_tools:
+    type: list
+    default: []
+    description: nc_* tool names to leave unregistered (per-tool disable); applies on next agent start / plugin reload.
   max_results:
     type: int
     default: 20

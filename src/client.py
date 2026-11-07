@@ -94,6 +94,7 @@ def settings() -> dict:
     """Snapshot of the plugin settings (read fresh on every call)."""
     providers = get_config("default_search_providers", DEFAULT_SEARCH_PROVIDERS)
     skip = get_config("talk_skip_tokens", []) or []
+    disabled = get_config("disabled_tools", []) or []
     return {
         "ca_bundle": get_config("ca_bundle", "") or "",
         "default_search_providers": [str(p) for p in (providers or DEFAULT_SEARCH_PROVIDERS)],
@@ -101,6 +102,7 @@ def settings() -> dict:
         "request_timeout": float(get_config("request_timeout", 30.0) or 30.0),
         "talk_include_dms": bool(get_config("talk_include_dms", False)),
         "talk_skip_tokens": [str(t) for t in skip],
+        "disabled_tools": [str(t) for t in disabled],
         "hard_block_destructive": bool(get_config("hard_block_destructive", False)),
     }
 

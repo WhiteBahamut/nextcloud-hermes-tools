@@ -1,0 +1,13 @@
+{
+  "name": "nextcloud-tools",
+  "label": "Nextcloud",
+  "icon": "Database",
+  "version": "0.1.0",
+  "description": "All nc_* tools with per-tool enable/disable.",
+  "tab": {
+    "path": "/nextcloud-tools",
+    "position": "end"
+  },
+  "entry": "dist/index.js",
+  "api": "plugin_api.py"
+}

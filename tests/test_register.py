@@ -60,3 +60,27 @@ def test_register_is_idempotent_name_set():
     _ctx, _call = conftest.make_caller()
     assert len(_ctx.tools) == 43
     assert pkg.TOOLSET == "nextcloud"
+
+
+def test_disabled_tools_skip_registration():
+    import conftest
+
+    # one tool disabled -> 42 registered, that tool absent, hook still registered
+    ctx, _ = conftest.make_caller(settings={"disabled_tools": ["nc_file_delete"]})
+    assert len(ctx.tools) == 42
+    assert "nc_file_delete" not in ctx.tools
+    assert "nc_file_list" in ctx.tools
+    assert [h[0] for h in ctx.hooks] == ["pre_tool_call"]
+    assert client.settings()["disabled_tools"] == ["nc_file_delete"]
+
+    # unknown names are ignored silently; non-list/None never raise
+    ctx2, _ = conftest.make_caller(settings={"disabled_tools": ["nc_not_a_tool"]})
+    assert len(ctx2.tools) == 43
+    ctx3, _ = conftest.make_caller(settings={"disabled_tools": None})
+    assert len(ctx3.tools) == 43
+    assert client.settings()["disabled_tools"] == []
+
+    # default (key absent) still registers all 43
+    ctx4, _ = conftest.make_caller()
+    assert len(ctx4.tools) == 43
+    assert client.settings()["disabled_tools"] == []
