@@ -25,7 +25,7 @@ def _create(args):
     path = args["path"]
     share_with = args["share_with"]
     share_type = int(args.get("share_type") or 0)
-    permissions = int(args.get("permissions") if args.get("permissions") is not None else 31)
+    permissions = int(args.get("permissions") if args.get("permissions") is not None else 1)
     note = args.get("note") or ""
     form = {
         "path": path,

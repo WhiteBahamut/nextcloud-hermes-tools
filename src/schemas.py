@@ -100,12 +100,12 @@ NC_SHARE_LIST = _s(
     {"path": {**PATH, "default": ""}},
 )
 NC_SHARE_CREATE = _s(
-    "Create a share (default: user/group share, permissions 31 = all). Verified by read-back. Gated by the approval hook.",
+    "Create a share (default: user/group share, permissions 1 = read-only). Verified by read-back. Gated by the approval hook.",
     {
         "path": PATH,
         "share_with": {"type": "string", "description": "User or group name (shareType 0)."},
         "share_type": {"type": "integer", "default": 0, "description": "0 = user/group, 3 = public link."},
-        "permissions": {"type": "integer", "default": 31, "description": "Permission bitmask; 31 = all."},
+        "permissions": {"type": "integer", "default": 1, "description": "Permission bitmask; 1 = read-only (default), 31 = all — pass explicitly."},
         "note": {"type": "string", "default": ""},
     },
     ["path", "share_with"],
