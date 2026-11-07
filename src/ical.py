@@ -55,9 +55,15 @@ def parse_content_line(line: str):
 
 
 def parse_ics(text: str) -> list:
-    """Parse ICS text -> list of components ``{"type", "props"}`` (VEVENT/VTODO/...)."""
+    """Parse ICS text -> list of components ``{"type", "props"}`` (VEVENT/VTODO/...).
+
+    A stack tracks nesting: BEGIN pushes (every component is still appended to
+    the flat top-level list, preserving the historical shape), END pops, and
+    properties attach to the innermost open component — so a VALARM no longer
+    swallows the VEVENT properties that follow it.
+    """
     components = []
-    current = None
+    stack = []
     for line in unfold(text):
         if not line.strip():
             continue
@@ -65,10 +71,12 @@ def parse_ics(text: str) -> list:
         if name == "BEGIN":
             current = {"type": value.upper(), "props": {}}
             components.append(current)
+            stack.append(current)
         elif name == "END":
-            current = None
-        elif current is not None:
-            current["props"].setdefault(name, []).append((params, value))
+            if stack:
+                stack.pop()
+        elif stack:
+            stack[-1]["props"].setdefault(name, []).append((params, value))
     return components
 
 
