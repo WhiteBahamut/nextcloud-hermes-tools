@@ -271,8 +271,12 @@ NC_CONTACT_EDIT = _s(
 # --- notes ---------------------------------------------------------------------
 
 NC_NOTE_LIST = _s(
-    "List notes (Notes app API; falls back to the WebDAV 'Notes/' folder when the API is unavailable). Content is truncated to a 200-char preview.",
-    {"category": {"type": "string", "default": ""}},
+    "List notes (Notes app API; falls back to the WebDAV 'Notes/' folder when the API is unavailable). API content is truncated to a 200-char preview; DAV content is only fetched with with_content=true (default false = metadata only).",
+    {
+        "category": {"type": "string", "default": ""},
+        "limit": {"type": "integer", "default": 50, "description": "Max notes returned."},
+        "with_content": {"type": "boolean", "default": False, "description": "DAV fallback: include a 200-char content preview per note (costs one GET per note)."},
+    },
 )
 NC_NOTE_GET = _s(
     "Get one full note by id (Notes API id, or title via the WebDAV fallback).",

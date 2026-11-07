@@ -54,7 +54,7 @@ def _dav_notes_href(title) -> str:
     return client.files_dav("Notes/" + title + ".txt")
 
 
-def _dav_list(category=""):
+def _dav_list(category="", limit=50, with_content=False):
     href = client.files_dav("Notes")
     prefix = client.files_dav("/").rstrip("/")
     resp = client.propfind(href, depth=1, body=PROPFIND_ALL)
@@ -68,11 +68,14 @@ def _dav_list(category=""):
             continue
         title = entry["name"][:-4]
         note = {"id": title, "title": title, "category": category, "size": entry["size"]}
-        try:
-            note["content"] = _preview(client.dav_get(_dav_notes_href(title)).text)
-        except client.NcError:
-            pass
+        if with_content:
+            try:
+                note["content"] = _preview(client.dav_get(_dav_notes_href(title)).text)
+            except client.NcError:
+                pass
         notes.append(note)
+        if len(notes) >= limit:
+            break
     return notes
 
 
@@ -103,11 +106,14 @@ def _dav_delete(title):
 
 def _note_list(args):
     category = args.get("category") or ""
+    limit = int(args.get("limit") or 50)
+    with_content = bool(args.get("with_content"))
     ok_api, payload = _api("GET", params={"category": category} if category else None)
     if ok_api and isinstance(payload, list):
         notes = [_note_obj(n, preview=True) for n in payload if isinstance(n, dict)]
+        notes = notes[:limit]
         return client.ok(count=len(notes), notes=notes, via="api")
-    notes = _dav_list(category)
+    notes = _dav_list(category, limit, with_content)
     return client.ok(count=len(notes), notes=notes, via="dav")
 
 
