@@ -85,9 +85,10 @@ def _dav_get(title):
 def _dav_put(title, content):
     href = _dav_notes_href(title)
     data = (content or "").encode("utf-8")
-    client.dav_put(href, data, content_type="text/plain; charset=utf-8")
-    if not client.verify_file_content(href, data):
-        raise client.NcError(500, f"write verification failed (sha256 mismatch): Notes/{title}.txt")
+    try:
+        client.put_verified(href, data, content_type="text/plain; charset=utf-8")
+    except client.NcError as exc:
+        raise client.NcError(exc.status, f"{exc.message}: Notes/{title}.txt")
 
 
 def _dav_delete(title):

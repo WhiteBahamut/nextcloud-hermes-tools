@@ -370,3 +370,27 @@ def verify_gone(path) -> bool:
         return False
     except NcError as exc:
         return exc.status == 404
+
+
+def put_verified(path, content: bytes, content_type: str = "") -> None:
+    """PUT + server-attested verification.
+
+    Sends ``OC-Checksum: SHA256:<hex>`` with the PUT; when the response echoes
+    an ``OC-Checksum`` header, the sha256 is compared from the header (no
+    re-download of the body). When the server does not echo it, falls back to
+    the full GET read-back (:func:`verify_file_content`). Raises NcError on
+    any failure; never returns without verification.
+    """
+    digest = hashlib.sha256(content).hexdigest()
+    headers = {"OC-Checksum": f"SHA256:{digest}"}
+    if content_type:
+        headers["Content-Type"] = content_type
+    resp = require(request("PUT", path, content=content, headers=headers), (200, 201, 204))
+    echoed = (resp.headers.get("OC-Checksum") or "").strip()
+    m = re.match(r"(?i)sha256:([0-9a-f]+)", echoed)
+    if m:
+        if m.group(1).lower() != digest.lower():
+            raise NcError(500, "write verification failed (OC-Checksum mismatch)")
+        return
+    if not verify_file_content(path, content):
+        raise NcError(500, "write verification failed (sha256 mismatch)")

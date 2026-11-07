@@ -64,9 +64,10 @@ def _put(args):
     else:
         data = (args.get("content") or "").encode("utf-8")
     href = client.files_dav(path)
-    client.dav_put(href, data, content_type=args.get("content_type") or "")
-    if not client.verify_file_content(href, data):
-        return client.err(f"write verification failed (sha256 mismatch): {path}", path=path)
+    try:
+        client.put_verified(href, data, content_type=args.get("content_type") or "")
+    except client.NcError as exc:
+        return client.err(f"{exc.message}: {path}", status=exc.status, path=path)
     return client.ok(path=path, size=len(data), verified=True)
 
 
@@ -93,12 +94,14 @@ def _move(args):
     used_fallback = False
     if resp.status_code == 423:
         # files_lock: strict order GET source bytes -> PUT destination -> DELETE source.
-        used_fallback = True
         data = client.dav_get(src_href).content
-        client.dav_put(dst_href, data)
-        if not client.verify_file_content(dst_href, data):
+        used_fallback = True
+        try:
+            client.put_verified(dst_href, data)
+        except client.NcError as exc:
             return client.err(
-                f"move fallback verification failed (sha256 mismatch): {destination}",
+                f"move fallback verification failed ({exc.message}): {destination}",
+                status=exc.status,
                 source=source,
                 destination=destination,
             )
