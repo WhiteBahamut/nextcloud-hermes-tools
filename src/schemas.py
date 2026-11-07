@@ -30,10 +30,11 @@ NC_FILE_LIST = _s(
     },
 )
 NC_FILE_GET = _s(
-    "Download a file. utf-8-decodable content comes back as `content`, binary as `content_base64` (unless raw=true, which forces base64).",
+    "Download a file. utf-8-decodable content comes back as `content`, binary as `content_base64` (unless raw=true, which forces base64). Content is capped at `max_bytes` bytes (default 100000, 0 = unlimited); when capped, the response has `truncated: true` and the full `size`.",
     {
         "path": PATH,
         "raw": {"type": "boolean", "default": False, "description": "Force base64 even for text."},
+        "max_bytes": {"type": "integer", "default": 100000, "description": "Max bytes returned; 0 = unlimited."},
     },
     ["path"],
 )

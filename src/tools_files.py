@@ -44,16 +44,22 @@ def _list(args):
 def _get(args):
     path = args["path"]
     raw = bool(args.get("raw"))
+    max_bytes = int(args.get("max_bytes") if args.get("max_bytes") is not None else 100000)
+    if max_bytes < 0:
+        return client.err(f"invalid max_bytes {max_bytes}: use 0 (unlimited) or a positive byte count")
     resp = client.dav_get(client.files_dav(path))
-    data = resp.content
+    size = len(resp.content)
     etag = resp.headers.get("etag")
+    truncated = 0 < max_bytes < size
+    data = resp.content[:max_bytes] if truncated else resp.content
+    extra = {"truncated": True, "max_bytes": max_bytes} if truncated else {}
     if not raw:
         try:
-            return client.ok(path=path, size=len(data), etag=etag, content=data.decode("utf-8"))
+            return client.ok(path=path, size=size, etag=etag, content=data.decode("utf-8"), **extra)
         except UnicodeDecodeError:
-            pass
+            pass  # byte slice cut a multi-byte char -> base64 of the slice below
     return client.ok(
-        path=path, size=len(data), etag=etag, content_base64=base64.b64encode(data).decode("ascii")
+        path=path, size=size, etag=etag, content_base64=base64.b64encode(data).decode("ascii"), **extra
     )
 
 
