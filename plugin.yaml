@@ -1,0 +1,105 @@
+name: nextcloud-tools
+version: 0.1.0
+description: >-
+  Nextcloud toolset for Hermes Agent: 43 tools against one Nextcloud server -
+  files (WebDAV), unified/full-text search, shares, Talk, calendar, tasks,
+  contacts, notes, activity, notifications, tags, trashbin, comments and a
+  generic OCS escape hatch. All handlers return JSON strings; writes are
+  read-back verified and gated by a pre_tool_call approval hook.
+author: omp
+license: MIT
+requires_env:
+  # NC_* preferred; TALK_* (Talk platform plugin names) accepted as fallback
+  - NC_SERVER_URL
+  - NC_USER
+  - NC_APP_PASSWORD
+  - TALK_SERVER_URL
+  - TALK_USER
+  - TALK_APP_PASSWORD
+# httpx is a core Hermes dependency, always present in-host; declared for
+# manifest validation / `hermes pm repair` surfacing only.
+python_dependencies:
+  - httpx
+provides_hooks:
+  - pre_tool_call
+provides_tools:
+  # files (WebDAV)
+  - nc_file_list
+  - nc_file_get
+  - nc_file_put
+  - nc_file_mkdir
+  - nc_file_move
+  - nc_file_delete
+  # search
+  - nc_search
+  - nc_file_search
+  # shares
+  - nc_share_list
+  - nc_share_create
+  - nc_share_delete
+  # talk
+  - nc_talk_rooms
+  - nc_talk_messages
+  - nc_talk_send
+  - nc_talk_delete
+  - nc_talk_react
+  # calendar + tasks (CalDAV)
+  - nc_cal_list
+  - nc_cal_create
+  - nc_cal_edit
+  - nc_cal_delete
+  - nc_task_list
+  - nc_task_create
+  - nc_task_complete
+  # contacts (CardDAV)
+  - nc_contact_list
+  - nc_contact_search
+  - nc_contact_get
+  - nc_contact_create
+  - nc_contact_edit
+  # notes
+  - nc_note_list
+  - nc_note_get
+  - nc_note_create
+  - nc_note_edit
+  - nc_note_delete
+  # misc
+  - nc_activity
+  - nc_notifications
+  - nc_tag_list
+  - nc_tag_assign
+  - nc_tag_unassign
+  - nc_trash_list
+  - nc_trash_restore
+  - nc_trash_empty
+  - nc_comments
+  - nc_ocs
+config_schema:
+  ca_bundle:
+    type: str
+    default: ""
+    description: Path to a PEM CA bundle for servers with an internal CA (e.g. *.chromaticum.de). Empty = system CAs.
+  default_search_providers:
+    type: list
+    default: ["files", "fulltextsearch", "talk-message", "calendar", "tasks"]
+    description: Search providers queried by nc_search when its `providers` argument is empty.
+  max_results:
+    type: int
+    default: 20
+    description: Default per-provider result cap for nc_search.
+  request_timeout:
+    type: float
+    default: 30.0
+    description: HTTP request timeout in seconds.
+  talk_include_dms:
+    type: bool
+    default: false
+    description: Include 1:1 DM rooms in nc_talk_rooms.
+  talk_skip_tokens:
+    type: list
+    default: []
+    description: Talk room tokens always excluded from nc_talk_rooms (e.g. the gateway-polled DM).
+  hard_block_destructive:
+    type: bool
+    default: false
+    description: If true, destructive nc_* operations are hard-blocked by the pre_tool_call hook instead of routed to the approval gate.
