@@ -160,23 +160,35 @@ def book_dav(book: str) -> str:
 
 
 def redact(text) -> str:
-    """Strip app passwords (both NC_*/TALK_* spellings), base64(user:password) and Authorization values."""
+    """Strip app passwords (both NC_*/TALK_* spellings, plus URL-encoded form),
+    base64(user:password), URL userinfo (user:pass@host) and Authorization values.
+    Never raises — a failure here must not break error reporting."""
     if not isinstance(text, str):
         text = str(text)
-    users = {v for v in (_lookup("NC_USER"), _lookup("TALK_USER")) if v}
-    passwords = {v for v in (_lookup("NC_APP_PASSWORD"), _lookup("TALK_APP_PASSWORD")) if v}
+    try:
+        users = {v for v in (_lookup("NC_USER"), _lookup("TALK_USER")) if v}
+        passwords = {v for v in (_lookup("NC_APP_PASSWORD"), _lookup("TALK_APP_PASSWORD")) if v}
+    except Exception:
+        users, passwords = set(), set()
     for secret in passwords | users:
         text = text.replace(secret, "***")
     for u in users:
         for p in passwords:
             text = text.replace(base64.b64encode(f"{u}:{p}".encode()).decode(), "***")
+    for p in passwords:
+        text = text.replace(quote(p, safe=""), "***")
+    text = re.sub(r"(://[^/@\s:]+):[^/@\s]+@", r"\1:***@", text)  # user:pass@host userinfo
     text = re.sub(r"(?i)(authorization:\s*(?:(?:basic|bearer)\s+)?)\S+", r"\1***", text)
     text = re.sub(r"(?i)(bearer\s+)\S+", r"\1***", text)
     return text
 
 
 def err(message, **kw) -> str:
-    return json.dumps({"ok": False, "error": redact(message), **kw}, ensure_ascii=False)
+    try:
+        msg = redact(message)
+    except Exception:
+        msg = "internal error (message suppressed)"  # never leak the raw text
+    return json.dumps({"ok": False, "error": msg, **kw}, ensure_ascii=False)
 
 
 def ok(**kw) -> str:
@@ -202,7 +214,13 @@ def tool(fn):
 
 
 def get_client():
-    """Build/cache the httpx.Client (key = server+user+ca_bundle)."""
+    """Build/cache the httpx.Client (key = server+user+password+ca_bundle+timeout).
+
+    Password and timeout are part of the key so rotating the app password in
+    .env or changing the request_timeout setting rebuilds the client instead
+    of serving stale auth/timeout until process restart. The key holds the
+    password in memory (the client auth already does) — never log it.
+    """
     global _CLIENT, _CLIENT_KEY
     server = _secret("TALK_SERVER_URL").rstrip("/")
     user = _secret("TALK_USER")
@@ -211,12 +229,13 @@ def get_client():
         raise NcError(0, "missing credentials: set NC_SERVER_URL, NC_USER, NC_APP_PASSWORD (or TALK_SERVER_URL, TALK_USER, TALK_APP_PASSWORD)")
     ca_bundle = get_config("ca_bundle", "") or ""
     timeout = float(get_config("request_timeout", 30.0) or 30.0)
-    key = (server, user, ca_bundle)
+    key = (server, user, password, ca_bundle, timeout)
     with _LOCK:
         if _CLIENT is not None and _CLIENT_KEY == key:
             return _CLIENT
         import httpx
 
+        old = _CLIENT
         client = httpx.Client(
             base_url=server,
             auth=(user, password),
@@ -226,6 +245,11 @@ def get_client():
         )
         _CLIENT = client
         _CLIENT_KEY = key
+        if old is not None:
+            try:
+                old.close()
+            except Exception:
+                pass
         return client
 
 
