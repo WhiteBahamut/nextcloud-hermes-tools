@@ -231,9 +231,10 @@ def ok(**kw) -> str:
 def tool(fn):
     """Wrap a handler: never raises, always returns a JSON string.
 
-    Logs every call through the module logger (entry at DEBUG, outcome at
-    INFO/WARNING/ERROR); all dynamic text is redacted before logging. The
-    logged name is the wrapper's ``__name__``; register() sets it to the
+    Logs every call through the module logger: entry at DEBUG, then INFO on
+    success or WARNING on any failure (HTTP error, unexpected ok:false
+    result), ERROR on unexpected exceptions; all dynamic text is redacted.
+    The logged name is the wrapper's ``__name__``; register() sets it to the
     registered tool name (e.g. ``nc_file_list``).
     """
 
@@ -253,7 +254,18 @@ def tool(fn):
         except Exception as exc:  # handlers must never raise
             log.error("%s raised %s (%.3fs): %s", wrapper.__name__, type(exc).__name__, time.monotonic() - start, _log_safe(str(exc)))
             return err(f"{type(exc).__name__}: {exc}")
-        log.info("%s ok (%.3fs)", wrapper.__name__, time.monotonic() - start)
+        elapsed = time.monotonic() - start
+        err_msg = ""
+        try:
+            payload = json.loads(result)
+            if payload.get("ok") is False:
+                err_msg = str(payload.get("error") or "")
+        except Exception:
+            pass
+        if err_msg:
+            log.warning("%s failed (%.3fs): %s", wrapper.__name__, elapsed, _log_safe(err_msg))
+        else:
+            log.info("%s ok (%.3fs)", wrapper.__name__, elapsed)
         return result
 
     return wrapper
@@ -446,8 +458,9 @@ def put_verified(path, content: bytes, content_type: str = "") -> None:
     Sends ``OC-Checksum: SHA256:<hex>`` with the PUT; when the response echoes
     an ``OC-Checksum`` header, the sha256 is compared from the header (no
     re-download of the body). When the server does not echo it, falls back to
-    the full GET read-back (:func:`verify_file_content`). Raises NcError on
-    any failure; never returns without verification.
+    full GET read-back (:func:`verify_file_content`). Raises NcError on
+    any failure — the redacted path is part of the message so the tool wrapper
+    logs the failure exactly once. Never returns without verification.
     """
     digest = hashlib.sha256(content).hexdigest()
     headers = {"OC-Checksum": f"SHA256:{digest}"}
@@ -458,9 +471,7 @@ def put_verified(path, content: bytes, content_type: str = "") -> None:
     m = re.match(r"(?i)sha256:([0-9a-f]+)", echoed)
     if m:
         if m.group(1).lower() != digest.lower():
-            log.warning("write verification failed for %s (OC-Checksum mismatch)", _log_safe(path))
-            raise NcError(500, "write verification failed (OC-Checksum mismatch)")
+            raise NcError(500, f"write verification failed for {_log_safe(path)} (OC-Checksum mismatch)")
         return
     if not verify_file_content(path, content):
-        log.warning("write verification failed for %s (sha256 mismatch)", _log_safe(path))
-        raise NcError(500, "write verification failed (sha256 mismatch)")
+        raise NcError(500, f"write verification failed for {_log_safe(path)} (sha256 mismatch)")

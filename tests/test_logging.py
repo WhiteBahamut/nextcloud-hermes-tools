@@ -148,3 +148,31 @@ def test_register_logs_tool_count_and_applies_info_level(caplog):
 def test_register_applies_configured_warning_level():
     conftest.make_caller({"log_level": "WARNING"})
     assert logging.getLogger(PKG_LOGGER).level == logging.WARNING
+
+
+def test_write_verification_failure_logs_exactly_one_warning(nc, call, caplog):
+    def h(req):
+        if req.method == "PUT":
+            return httpx.Response(201)  # no OC-Checksum echo -> GET read-back
+        return httpx.Response(200, content=b"tampered")  # read-back mismatch
+
+    nc.handler = h
+    with caplog.at_level(logging.DEBUG, logger=PKG_LOGGER):
+        res = call("nc_file_put", {"path": "/x.txt", "content": "hello"})
+    assert res["ok"] is False and "verification failed" in res["error"]
+    warns = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warns) == 1
+    msg = warns[0].getMessage()
+    assert "nc_file_put" in msg and "verification failed" in msg and "x.txt" in msg
+    assert not any(r.levelno == logging.INFO and "nc_file_put" in r.getMessage() for r in caplog.records)
+
+
+def test_ok_false_result_logs_warning_not_info(nc, call, caplog):
+    with caplog.at_level(logging.DEBUG, logger=PKG_LOGGER):
+        res = call("nc_search", {"term": ""})
+    assert res["ok"] is False
+    assert any(
+        r.levelno == logging.WARNING and "nc_search" in r.getMessage() and "empty search term" in r.getMessage()
+        for r in caplog.records
+    )
+    assert not any(r.levelno == logging.INFO and "nc_search" in r.getMessage() for r in caplog.records)

@@ -76,7 +76,7 @@ def _put(args):
     try:
         client.put_verified(href, data, content_type=args.get("content_type") or "")
     except client.NcError as exc:
-        return client.err(f"{exc.message}: {path}", status=exc.status, path=path)
+        return client.err(exc.message, status=exc.status, path=path)
     return client.ok(path=path, size=len(data), verified=True)
 
 
@@ -110,7 +110,7 @@ def _move(args):
             client.put_verified(dst_href, data)
         except client.NcError as exc:
             return client.err(
-                f"move fallback verification failed ({exc.message}): {destination}",
+                f"move fallback verification failed ({exc.message})",  # destination already a field
                 status=exc.status,
                 source=source,
                 destination=destination,

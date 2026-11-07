@@ -91,7 +91,7 @@ def _dav_put(title, content):
     try:
         client.put_verified(href, data, content_type="text/plain; charset=utf-8")
     except client.NcError as exc:
-        raise client.NcError(exc.status, f"{exc.message}: Notes/{title}.txt")
+        raise client.NcError(exc.status, exc.message)
 
 
 def _dav_delete(title):
