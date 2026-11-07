@@ -1,5 +1,5 @@
 name: nextcloud-tools
-version: 0.2.4
+version: 0.3.0
 description: >-
   Nextcloud toolset for Hermes Agent: 43 tools against one Nextcloud server -
   files (WebDAV), unified/full-text search, shares, Talk, calendar, tasks,
@@ -107,3 +107,7 @@ config_schema:
     type: bool
     default: false
     description: If true, destructive nc_* operations are hard-blocked by the pre_tool_call hook instead of routed to the approval gate.
+  log_level:
+    type: str
+    default: "INFO"
+    description: Level for the plugin's `nextcloud_tools.*` loggers (DEBUG/INFO/WARNING/ERROR/CRITICAL). Records propagate to the Hermes host log files (agent.log/errors.log); the plugin attaches no handlers of its own.

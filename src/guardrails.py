@@ -15,7 +15,11 @@ anything else returns ``None``. Non-``nc_`` tools always return ``None``.
 
 from __future__ import annotations
 
+import logging
+
 from . import client
+
+log = logging.getLogger(__name__)
 
 READ_ONLY = frozenset({
     "nc_file_list", "nc_file_get", "nc_search", "nc_file_search", "nc_share_list",
@@ -72,11 +76,13 @@ def guard(tool_name="", args=None, **_):
         if not name.startswith("nc_"):
             return None
         cls = _classify(name, args)
+        log.debug("guard %s -> %s", name, cls)
         if cls == "read" or cls is None:
             return None
         brief = _brief(args)
         if cls == "destructive":
             if client.settings()["hard_block_destructive"]:
+                log.warning("hard-block destructive %s %s", name, client.redact(brief))
                 return {
                     "action": "block",
                     "message": f"Destructive Nextcloud op hard-blocked (hard_block_destructive): {name} {brief}".strip(),

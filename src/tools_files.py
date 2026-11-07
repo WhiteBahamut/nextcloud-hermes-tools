@@ -9,10 +9,13 @@ verified by read-back; delete is verified 404.
 from __future__ import annotations
 
 import base64
+import logging
 from urllib.parse import unquote
 
 from . import client, schemas
 from .dav import PROPFIND_ALL, entry_from_response, parse_multistatus
+
+log = logging.getLogger(__name__)
 
 
 def _prefix() -> str:
@@ -100,6 +103,7 @@ def _move(args):
     used_fallback = False
     if resp.status_code == 423:
         # files_lock: strict order GET source bytes -> PUT destination -> DELETE source.
+        log.info("MOVE 423 files_lock, fallback GET/PUT/DELETE for %s", client.redact(source))
         data = client.dav_get(src_href).content
         used_fallback = True
         try:

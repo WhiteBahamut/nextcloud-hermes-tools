@@ -16,11 +16,23 @@ import base64
 import functools
 import hashlib
 import json
+import logging
 import os
 import re
 import threading
 import time
 from urllib.parse import quote, unquote
+
+log = logging.getLogger(__name__)
+
+LOG_LEVELS = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "WARN": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+}
 
 REQUIRED_ENV = ("TALK_SERVER_URL", "TALK_USER", "TALK_APP_PASSWORD")
 
@@ -89,6 +101,17 @@ def get_config(key, default=None):
             return value
     return default
 
+def set_log_level(level=None) -> int:
+    """Apply the plugin log level to the ``nextcloud_tools`` package logger.
+
+    Resolves ``level`` or the ``log_level`` setting (default INFO), maps it via
+    LOG_LEVELS (unknown -> INFO) and returns the int. Attaches NO handlers:
+    records propagate to the Hermes host root logger (agent.log/errors.log).
+    """
+    resolved = LOG_LEVELS.get(str(level or get_config("log_level", "INFO") or "INFO").upper(), logging.INFO)
+    logging.getLogger("nextcloud_tools").setLevel(resolved)
+    return resolved
+
 
 def settings() -> dict:
     """Snapshot of the plugin settings (read fresh on every call)."""
@@ -104,6 +127,7 @@ def settings() -> dict:
         "talk_skip_tokens": [str(t) for t in skip],
         "disabled_tools": [str(t) for t in disabled],
         "hard_block_destructive": bool(get_config("hard_block_destructive", False)),
+        "log_level": str(get_config("log_level", "INFO") or "INFO").upper(),
     }
 
 
@@ -184,6 +208,13 @@ def redact(text) -> str:
     text = re.sub(r"(?i)(bearer\s+)\S+", r"\1***", text)
     return text
 
+def _log_safe(text) -> str:
+    """redact() for log lines; any failure -> fixed placeholder (logging must never break a handler)."""
+    try:
+        return redact(text)
+    except Exception:
+        return "<unloggable>"
+
 
 def err(message, **kw) -> str:
     try:
@@ -198,16 +229,32 @@ def ok(**kw) -> str:
 
 
 def tool(fn):
-    """Wrap a handler: never raises, always returns a JSON string."""
+    """Wrap a handler: never raises, always returns a JSON string.
+
+    Logs every call through the module logger (entry at DEBUG, outcome at
+    INFO/WARNING/ERROR); all dynamic text is redacted before logging. The
+    logged name is the wrapper's ``__name__``; register() sets it to the
+    registered tool name (e.g. ``nc_file_list``).
+    """
 
     @functools.wraps(fn)
     def wrapper(args=None, **_kwargs):
+        start = time.monotonic()
+        if log.isEnabledFor(logging.DEBUG):
+            try:
+                log.debug("%s args=%s", wrapper.__name__, redact(json.dumps(args or {}))[:300])
+            except Exception:
+                log.debug("%s args=<unloggable>", wrapper.__name__)
         try:
-            return fn(args or {})
+            result = fn(args or {})
         except NcError as exc:
+            log.warning("%s failed HTTP %s (%.3fs): %s", wrapper.__name__, exc.status, time.monotonic() - start, _log_safe(exc.message))
             return err(f"HTTP {exc.status}: {exc.message}", status=exc.status)
         except Exception as exc:  # handlers must never raise
+            log.error("%s raised %s (%.3fs): %s", wrapper.__name__, type(exc).__name__, time.monotonic() - start, _log_safe(str(exc)))
             return err(f"{type(exc).__name__}: {exc}")
+        log.info("%s ok (%.3fs)", wrapper.__name__, time.monotonic() - start)
+        return result
 
     return wrapper
 
@@ -247,6 +294,7 @@ def get_client():
         )
         _CLIENT = client
         _CLIENT_KEY = key
+        log.debug("httpx client rebuilt server=%s user=%s ca_bundle=%s timeout=%s", server, user, ca_bundle or "", timeout)
         if old is not None:
             try:
                 old.close()
@@ -273,15 +321,24 @@ def request(method, path, *, params=None, data=None, json_body=None, content=Non
     """
     client = get_client()
     safe = method.upper() in RETRY_SAFE_METHODS
+    debug = log.isEnabledFor(logging.DEBUG)
     for attempt in (0, 1):
+        if debug:
+            log.debug("--> %s %s", method, _log_safe(path))
+        start = time.monotonic()
         try:
-            return client.request(
+            resp = client.request(
                 method, path, params=params, data=data, json=json_body, content=content, headers=headers
             )
         except Exception as exc:
             if attempt == 1 or not safe or not _retryable(exc):
                 raise
+            log.warning("retry %s %s after %s (attempt 1)", method, _log_safe(path), type(exc).__name__)
             time.sleep(0.5)
+            continue
+        if debug:
+            log.debug("<-- %s %d in %.3fs", method, resp.status_code, time.monotonic() - start)
+        return resp
 
 
 def resp_message(resp) -> str:
@@ -401,7 +458,9 @@ def put_verified(path, content: bytes, content_type: str = "") -> None:
     m = re.match(r"(?i)sha256:([0-9a-f]+)", echoed)
     if m:
         if m.group(1).lower() != digest.lower():
+            log.warning("write verification failed for %s (OC-Checksum mismatch)", _log_safe(path))
             raise NcError(500, "write verification failed (OC-Checksum mismatch)")
         return
     if not verify_file_content(path, content):
+        log.warning("write verification failed for %s (sha256 mismatch)", _log_safe(path))
         raise NcError(500, "write verification failed (sha256 mismatch)")

@@ -6,8 +6,11 @@ Prop names are matched by local name (``{*}tag``-style), so namespace prefixes
 
 from __future__ import annotations
 
+import logging
 import xml.etree.ElementTree as ET
 from urllib.parse import unquote
+
+log = logging.getLogger(__name__)
 
 
 def _local(tag: str) -> str:
@@ -43,6 +46,7 @@ def parse_multistatus(xml_text: str) -> list:
                         for p in prop:
                             props[_local(p.tag)] = _prop_value(p)
         out.append({"href": href, "props": props})
+    log.debug("parse_multistatus: %d responses", len(out))
     return out
 
 

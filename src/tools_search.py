@@ -11,11 +11,14 @@
 
 from __future__ import annotations
 
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import unquote
 
 from . import client, schemas
 from .dav import PROPFIND_ALL, entry_from_response, parse_multistatus
+
+log = logging.getLogger(__name__)
 
 
 def _query_provider(provider: str, term: str, limit: int) -> list:
@@ -35,6 +38,7 @@ def _query_provider(provider: str, term: str, limit: int) -> list:
                 out.append({"provider": provider, "entry": entry})
         return out
     except Exception as exc:
+        log.warning("search provider %s failed: %s", provider, client.redact(str(exc)))
         return [{"provider": provider, "error": client.redact(str(exc))}]
 
 

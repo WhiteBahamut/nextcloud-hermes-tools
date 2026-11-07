@@ -7,6 +7,10 @@ as ``NC_SERVER_URL`` / ``NC_USER`` / ``NC_APP_PASSWORD`` (preferred; the
 via ``agent.secret_scope.get_secret_str`` — never ``os.getenv``.
 """
 
+import logging
+
+log = logging.getLogger(__name__)
+
 TOOLSET = "nextcloud"
 
 
@@ -25,7 +29,9 @@ def register(ctx):
     )
 
     client.configure(ctx)
+    log_level = client.set_log_level()
     disabled = {str(t) for t in (ctx.get_config("disabled_tools", []) or [])}
+    registered = 0
     for module in (
         tools_files,
         tools_search,
@@ -39,6 +45,8 @@ def register(ctx):
         for name, schema, handler in module.TOOLS:
             if name in disabled:
                 continue
+            registered += 1
+            handler.__name__ = name  # the tool() wrapper logs under the tool name
             ctx.register_tool(
                 name=name,
                 toolset=TOOLSET,
@@ -49,3 +57,4 @@ def register(ctx):
                 description=schema["description"],
             )
     ctx.register_hook("pre_tool_call", guardrails.guard)
+    log.info("nextcloud-tools registered %d tools, %d disabled, log_level=%s", registered, len(disabled), logging.getLevelName(log_level))
