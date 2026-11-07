@@ -11,10 +11,31 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import unquote
 
 from . import client, schemas
 from .dav import PROPFIND_ALL, entry_from_response, parse_multistatus
+
+
+def _query_provider(provider: str, term: str, limit: int) -> list:
+    """One provider's results; a failure becomes a per-provider error entry."""
+    try:
+        data = client.ocs(
+            "GET",
+            f"search/providers/{provider}/search",
+            params={"term": term, "limit": limit},
+        )
+        entries = data if isinstance(data, list) else [data]
+        out = []
+        for entry in entries:
+            if isinstance(entry, dict):
+                out.append({"provider": provider, **entry})
+            else:
+                out.append({"provider": provider, "entry": entry})
+        return out
+    except Exception as exc:
+        return [{"provider": provider, "error": client.redact(str(exc))}]
 
 
 def _search(args):
@@ -22,25 +43,15 @@ def _search(args):
     if not term.strip():
         return client.err("empty search term")
     s = client.settings()
-    providers = args.get("providers") or s["default_search_providers"]
+    providers = [str(p) for p in (args.get("providers") or s["default_search_providers"])]
     limit = int(args.get("limit") or 0) or s["max_results"]
     results = []
-    for provider in providers:
-        provider = str(provider)
-        try:
-            data = client.ocs(
-                "GET",
-                f"search/providers/{provider}/search",
-                params={"term": term, "limit": limit},
-            )
-            entries = data if isinstance(data, list) else [data]
-            for entry in entries:
-                if isinstance(entry, dict):
-                    results.append({"provider": provider, **entry})
-                else:
-                    results.append({"provider": provider, "entry": entry})
-        except Exception as exc:
-            results.append({"provider": provider, "error": client.redact(str(exc))})
+    if providers:
+        # Read-only OCS GETs only; httpx.Client is thread-safe. pool.map keeps
+        # the providers-argument order (not completion order).
+        with ThreadPoolExecutor(max_workers=min(len(providers), 8)) as pool:
+            for provider_results in pool.map(lambda p: _query_provider(p, term, limit), providers):
+                results.extend(provider_results)
     return client.ok(term=term, count=len(results), results=results)
 
 
