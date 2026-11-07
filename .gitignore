@@ -4,3 +4,4 @@ __pycache__/
 .omp/*
 !.omp/skills/
 !.omp/agents/
+.omp/skills/*/last-checked.json

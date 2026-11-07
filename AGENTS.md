@@ -77,6 +77,10 @@ surrounding style by hand. Every module MUST start with
 
 See the `nc-add-tool` skill (`.omp/skills/nc-add-tool/SKILL.md`).
 
+## Compatibility checks
+
+See the `nc-compat-hermes` and `nc-compat-nextcloud` skills (`.omp/skills/`) for the regular Hermes/Nextcloud compatibility watchlist.
+
 ## Git
 
 Conventional commits — `feat:` / `fix:` / `perf:` / `security:` / `docs:` + short
