@@ -99,6 +99,13 @@ surrounding style by hand. Every module MUST start with
 Conventional commits — `feat:` / `fix:` / `perf:` / `security:` / `docs:` + short
 description (see `git log`). One logical change per PR.
 
+**Version bump is mandatory:** every commit MUST also bump `version:` in
+`plugin.yaml` (line 2) so Hermes sees the new version after `git pull`.
+Semver mapped from the conventional-commit type: `fix:` / `perf:` /
+`security:` / `docs:` → patch, `feat:` → minor, breaking change (`!` suffix
+or `BREAKING CHANGE` footer) → major. The `dashboard/manifest.json` version
+is the dashboard tab's own version, not the plugin version — do not sync it.
+
 ## Never
 
 - MUST NOT add new third-party dependencies (runtime: `httpx` only; tests: `pytest` only).
