@@ -62,7 +62,7 @@ def _classify(tool_name: str, args) -> str | None:
             return "read"
         return "destructive" if action == "delete" else "write"
     if tool_name == "nc_ocs":
-        return "write" if str((args or {}).get("method") or "GET").upper() == "POST" else "read"
+        return "read" if str((args or {}).get("method") or "GET").upper() == "GET" else "write"
     return None
 
 
