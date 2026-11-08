@@ -56,6 +56,15 @@ never fix, never edit files.
    the bump; if committed, check `git log -1 --format=%s` and that the same commit
    touched `plugin.yaml` line 2. `dashboard/manifest.json` MUST NOT be synced.
 5. Verify against actual code, not diff context; mark unconfirmed items `unverified`.
+6. Run the deterministic offline API validation and cite its evidence:
+   `bash .omp/agents/nc-tool-review/scripts/validate_all.sh` — layers 1-3 against
+   sha256-pinned upstream sources (Hermes loader source, Nextcloud docs/OpenAPI
+   specs/release notes, RFC 4918 + developer-manual XML fixtures; pins in `scripts/lib/upstream_pins.json`,
+   lock in `scripts/lib/upstream_lock.json`, cache in the gitignored
+   `scripts/.cache/`). The layer-2 scratch venv `scripts/.venv-check/` is dev-only
+   and gitignored — never installed into the Hermes host. Quote the runner's
+   `PASS`/`FAIL` lines in `summary`; any `FAIL` is a blocker finding naming the
+   failed layer.
 
 ## Severity
 - blocker: violates a MUST / hard rule in `AGENTS.md` (e.g. missing schema/TOOLS/plugin.yaml/

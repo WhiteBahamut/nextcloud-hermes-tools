@@ -1,0 +1,104 @@
+{
+  "comment": "Pinned upstream sources for the layer 1-3 validation scripts. Every pin is content-addressed by sha256 in upstream_lock.json; with an intact .cache/ + lock, fetch_upstream.py performs NO network access. Update a pin by editing the url here and running `python3 lib/fetch_upstream.py --update-lock` (never by guessing a new path inside a check script — a 404 fails the fetch with the URL).",
+  "pins": {
+    "hermes_plugins_py": {
+      "url": "https://raw.githubusercontent.com/NousResearch/hermes-agent/8d7061f1a74980a7549356a4e5e57b603475ddf0/hermes_cli/plugins.py",
+      "note": "Hermes plugin facade at pinned commit (main, 2026-11-08); re-exports PluginContext and the manifest, references VALID_HOOKS."
+    },
+    "hermes_hooks_py": {
+      "url": "https://raw.githubusercontent.com/NousResearch/hermes-agent/8d7061f1a74980a7549356a4e5e57b603475ddf0/hermes_cli/hooks.py",
+      "note": "Defines the valid hook names; must contain \"pre_tool_call\"."
+    },
+    "hermes_plugins_context_py": {
+      "url": "https://raw.githubusercontent.com/NousResearch/hermes-agent/8d7061f1a74980a7549356a4e5e57b603475ddf0/hermes_cli/plugins_context.py",
+      "note": "Defines PluginContext (register_tool / register_hook / get_config)."
+    },
+    "hermes_plugins_manifest_py": {
+      "url": "https://raw.githubusercontent.com/NousResearch/hermes-agent/8d7061f1a74980a7549356a4e5e57b603475ddf0/hermes_cli/plugins_manifest.py",
+      "note": "Defines PluginManifest (the plugin.yaml model)."
+    },
+    "nc_openapi_v34": {
+      "url": "https://raw.githubusercontent.com/nextcloud/server/v34.0.5/openapi.json",
+      "note": "Nextcloud server OCS OpenAPI spec at the support floor tag v34.0.5 (latest stable v34 at pin time)."
+    },
+    "nc_openapi_v35": {
+      "url": "https://raw.githubusercontent.com/nextcloud/server/v35.0.2/openapi.json",
+      "note": "Nextcloud server OCS OpenAPI spec at the latest stable tag v35.0.2 (no v36 stable tag exists at pin time; confirmed via the tags API)."
+    },
+    "nc_releases": {
+      "url": "https://api.github.com/repos/nextcloud/server/releases?per_page=100",
+      "note": "GitHub releases feed for nextcloud/server; used for the floor->latest deprecation sweep."
+    },
+    "docs_v34_ocs_overview": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable34/developer_manual/client_apis/OCS/ocs-api-overview.rst",
+      "note": "OCS overview, floor docs (stable34 branch)."
+    },
+    "docs_v34_ocs_share": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable34/developer_manual/client_apis/OCS/ocs-share-api.rst",
+      "note": "OCS share API, floor docs."
+    },
+    "docs_v34_webdav_basic": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable34/developer_manual/client_apis/WebDAV/basic.rst",
+      "note": "WebDAV basics (files root, multistatus semantics), floor docs."
+    },
+    "docs_v34_webdav_comments": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable34/developer_manual/client_apis/WebDAV/comments.rst",
+      "note": "WebDAV comments endpoint, floor docs."
+    },
+    "docs_v34_webdav_trashbin": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable34/developer_manual/client_apis/WebDAV/trashbin.rst",
+      "note": "WebDAV trashbin endpoint, floor docs."
+    },
+    "docs_v34_activity_api": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable35/developer_manual/client_apis/activity-api.rst",
+      "note": "Activity API page; pinned at stable35 (identical path exists at stable34)."
+    },
+    "docs_v35_ocs_overview": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable35/developer_manual/client_apis/OCS/ocs-api-overview.rst",
+      "note": "OCS overview, latest docs (stable35 branch)."
+    },
+    "docs_v35_ocs_share": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable35/developer_manual/client_apis/OCS/ocs-share-api.rst",
+      "note": "OCS share API, latest docs."
+    },
+    "docs_v35_webdav_basic": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable35/developer_manual/client_apis/WebDAV/basic.rst",
+      "note": "WebDAV basics, latest docs."
+    },
+    "docs_v35_webdav_comments": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable35/developer_manual/client_apis/WebDAV/comments.rst",
+      "note": "WebDAV comments endpoint, latest docs."
+    },
+    "docs_v35_webdav_trashbin": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable35/developer_manual/client_apis/WebDAV/trashbin.rst",
+      "note": "WebDAV trashbin endpoint, latest docs."
+    },
+    "talk_openapi_v25": {
+      "url": "https://raw.githubusercontent.com/nextcloud/spreed/v25.0.7/openapi.json",
+      "note": "Talk (spreed) app OpenAPI spec at tag v25.0.7 — covers /ocs/v2.php/apps/spreed/api/v4/... (the server spec excludes app endpoints)."
+    },
+    "talk_docs_conversation": {
+      "url": "https://raw.githubusercontent.com/nextcloud/spreed/v25.0.7/docs/conversation.md",
+      "note": "Talk docs page referencing apps/spreed/api/v4 room endpoints."
+    },
+    "notes_docs_v6": {
+      "url": "https://raw.githubusercontent.com/nextcloud/notes/v6.1.0/docs/api/v1.md",
+      "note": "Notes app API v1 doc — covers /index.php/apps/notes/api/v1/notes."
+    },
+    "rfc4918_webdav": {
+      "url": "https://www.rfc-editor.org/rfc/rfc4918.txt",
+      "note": "RFC 4918 (WebDAV) text — 10 multistatus examples incl. per-propstat HTTP/1.1 200/403/412 statuses. sabre/dav test files were dropped as fixture sources: their tests xpath into server-generated XML instead of embedding multistatus literals (verified at tag 4.7.1), so the pinned docs + RFC are the upstream XML fixtures."
+    }
+  },
+  "meta": {
+    "hermes_sha": "8d7061f1a74980a7549356a4e5e57b603475ddf0",
+    "nc_floor_tag": "v34.0.5",
+    "nc_latest_tag": "v35.0.2",
+    "doc_branches": ["stable34", "stable35"],
+    "pip": {
+      "openapi-spec-validator": "0.8.5",
+      "openapi-core": "0.23.1"
+    },
+    "note": "Scratch-venv pins for layer 2 (validate_all.sh creates scripts/.venv-check/, gitignored). openapi-spec-validator 0.9.0 conflicts with openapi-core 0.23.1 (which requires osv <0.9.0), so the pair is 0.8.5 (exports OpenAPIV32SpecValidator) + 0.23.1; both support Python >=3.10. Runtime deps stay httpx-only; tests stay httpx+pytest."
+  }
+}

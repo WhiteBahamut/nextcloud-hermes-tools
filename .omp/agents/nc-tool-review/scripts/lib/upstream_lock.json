@@ -1,0 +1,115 @@
+{
+  "comment": "Pinned upstream sources for the layer 1-3 validation scripts. Every pin is content-addressed by sha256 in upstream_lock.json; with an intact .cache/ + lock, fetch_upstream.py performs NO network access. Update a pin by editing the url here and running `python3 lib/fetch_upstream.py --update-lock` (never by guessing a new path inside a check script \u2014 a 404 fails the fetch with the URL).",
+  "pins": {
+    "docs_v34_activity_api": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable35/developer_manual/client_apis/activity-api.rst",
+      "sha256": "a49d9c97423ec35a5e5080579572d09b608b703c53826476a36f93f51e601989",
+      "bytes": 13673
+    },
+    "docs_v34_ocs_overview": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable34/developer_manual/client_apis/OCS/ocs-api-overview.rst",
+      "sha256": "d53e04d0d197a6971d4aa6b91068b227d71a6aa9c40070e462fe4c3dfcc7deb6",
+      "bytes": 9741
+    },
+    "docs_v34_ocs_share": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable34/developer_manual/client_apis/OCS/ocs-share-api.rst",
+      "sha256": "1e29d0305b9da5287217af9889150605896a0ab0536d2ecd4256b6832cc6bfc1",
+      "bytes": 9780
+    },
+    "docs_v34_webdav_basic": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable34/developer_manual/client_apis/WebDAV/basic.rst",
+      "sha256": "75d5c0b685cfb6fd2e909d1217b7af66c5d969359304c80c681bd710258bdd46",
+      "bytes": 60684
+    },
+    "docs_v34_webdav_comments": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable34/developer_manual/client_apis/WebDAV/comments.rst",
+      "sha256": "19e0e666d76377db3af9dc5cfc69b7b4af5a34e06a1f5297d392796f4676a47e",
+      "bytes": 3160
+    },
+    "docs_v34_webdav_trashbin": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable34/developer_manual/client_apis/WebDAV/trashbin.rst",
+      "sha256": "c22aada4ec64530e7738c6da15c88116f62509e179e36d2146f2e68573f5c3eb",
+      "bytes": 1256
+    },
+    "docs_v35_ocs_overview": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable35/developer_manual/client_apis/OCS/ocs-api-overview.rst",
+      "sha256": "91d80079527320e599740b173396e057c292bf5997227177c6eacbf01cadb463",
+      "bytes": 10097
+    },
+    "docs_v35_ocs_share": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable35/developer_manual/client_apis/OCS/ocs-share-api.rst",
+      "sha256": "1e29d0305b9da5287217af9889150605896a0ab0536d2ecd4256b6832cc6bfc1",
+      "bytes": 9780
+    },
+    "docs_v35_webdav_basic": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable35/developer_manual/client_apis/WebDAV/basic.rst",
+      "sha256": "996f62193860d84698617bf9f90dc014437ea0c6a9f188f891355c8b72ead542",
+      "bytes": 61766
+    },
+    "docs_v35_webdav_comments": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable35/developer_manual/client_apis/WebDAV/comments.rst",
+      "sha256": "19e0e666d76377db3af9dc5cfc69b7b4af5a34e06a1f5297d392796f4676a47e",
+      "bytes": 3160
+    },
+    "docs_v35_webdav_trashbin": {
+      "url": "https://raw.githubusercontent.com/nextcloud/documentation/stable35/developer_manual/client_apis/WebDAV/trashbin.rst",
+      "sha256": "c22aada4ec64530e7738c6da15c88116f62509e179e36d2146f2e68573f5c3eb",
+      "bytes": 1256
+    },
+    "hermes_hooks_py": {
+      "url": "https://raw.githubusercontent.com/NousResearch/hermes-agent/8d7061f1a74980a7549356a4e5e57b603475ddf0/hermes_cli/hooks.py",
+      "sha256": "501687eb95df95fe2c5e6d73abe905aeaaefe03676dde8010bfdd143003c1824",
+      "bytes": 16198
+    },
+    "hermes_plugins_context_py": {
+      "url": "https://raw.githubusercontent.com/NousResearch/hermes-agent/8d7061f1a74980a7549356a4e5e57b603475ddf0/hermes_cli/plugins_context.py",
+      "sha256": "d75a6fef102140431f68bc1a402d58977b5024ad21d5b1df284a9dad41250df4",
+      "bytes": 52913
+    },
+    "hermes_plugins_manifest_py": {
+      "url": "https://raw.githubusercontent.com/NousResearch/hermes-agent/8d7061f1a74980a7549356a4e5e57b603475ddf0/hermes_cli/plugins_manifest.py",
+      "sha256": "89b30e679247a628c7dad93c573afa9f3f22529015b26397de24f5067ff7fc06",
+      "bytes": 28989
+    },
+    "hermes_plugins_py": {
+      "url": "https://raw.githubusercontent.com/NousResearch/hermes-agent/8d7061f1a74980a7549356a4e5e57b603475ddf0/hermes_cli/plugins.py",
+      "sha256": "de202d98d253965fc67c6f85b2a142fbdf3c0112961b9ab68e4f43916a84085c",
+      "bytes": 74493
+    },
+    "nc_openapi_v34": {
+      "url": "https://raw.githubusercontent.com/nextcloud/server/v34.0.5/openapi.json",
+      "sha256": "9585ec388c6349f166b997565df45bfe14c97979b9aae28af2338925ba224ed6",
+      "bytes": 1993788
+    },
+    "nc_openapi_v35": {
+      "url": "https://raw.githubusercontent.com/nextcloud/server/v35.0.2/openapi.json",
+      "sha256": "7be89835f213da8702ad612b4e68462a882933b65da1e295544b60a009677f7f",
+      "bytes": 2184913
+    },
+    "nc_releases": {
+      "url": "https://api.github.com/repos/nextcloud/server/releases?per_page=100",
+      "sha256": "2923295d79e6c71e4200f296ff527a3a8f062008dbc6867d613a99e2ae4ce565",
+      "bytes": 201736
+    },
+    "notes_docs_v6": {
+      "url": "https://raw.githubusercontent.com/nextcloud/notes/v6.1.0/docs/api/v1.md",
+      "sha256": "b675f4d2ab24fd7b2580f0acf3b897e90eb4a1705e9f3a351a87e6e58d1c97f7",
+      "bytes": 18780
+    },
+    "rfc4918_webdav": {
+      "url": "https://www.rfc-editor.org/rfc/rfc4918.txt",
+      "sha256": "619ad705b4c0e26af2d0652bb48ca1fa9bd080546993d46730d604b9fe2bdf25",
+      "bytes": 276352
+    },
+    "talk_docs_conversation": {
+      "url": "https://raw.githubusercontent.com/nextcloud/spreed/v25.0.7/docs/conversation.md",
+      "sha256": "8c188c1c9aa36776b369c7772559a4aa235084039c07941b88d0781b3df59847",
+      "bytes": 51442
+    },
+    "talk_openapi_v25": {
+      "url": "https://raw.githubusercontent.com/nextcloud/spreed/v25.0.7/openapi.json",
+      "sha256": "e871a3a8e3b7c707697e35454de00d495ab7586befc2a52e033b49f6d986c164",
+      "bytes": 1402749
+    }
+  }
+}

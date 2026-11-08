@@ -51,6 +51,11 @@ Report findings; never fix, never edit files.
 5. Do not edit files, do not install anything, do not spawn subagents (`task` is not
    in your tool list). Read-only bash (`git`, `grep`) is fine; if `.venv` exists you may
    run `.venv/bin/python -m pytest tests -q` purely as evidence and report the result.
+6. Run the deterministic invariant runner and cite its evidence:
+   `bash .omp/agents/nc-security-audit/scripts/run_all.sh` — read-only, stdlib-only,
+   no installs, no network; encodes exactly the grep checklist from step 3 over the
+   scoped changed files. Quote its `PASS`/`FAIL` lines in `summary`; any `FAIL` is a
+   blocker finding naming the failed check.
 
 ## Severity
 - blocker: violates a MUST / hard rule in `AGENTS.md`; leaks or logs a secret; sends an
