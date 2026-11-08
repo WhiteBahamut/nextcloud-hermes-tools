@@ -17,6 +17,7 @@ TOOLSET = "nextcloud"
 def register(ctx):
     from . import (
         client,
+        compat,
         guardrails,
         tools_cal,
         tools_contacts,
@@ -58,3 +59,4 @@ def register(ctx):
             )
     ctx.register_hook("pre_tool_call", guardrails.guard)
     log.info("nextcloud-tools registered %d tools, %d disabled, log_level=%s", registered, len(disabled), logging.getLevelName(log_level))
+    compat.check_versions()

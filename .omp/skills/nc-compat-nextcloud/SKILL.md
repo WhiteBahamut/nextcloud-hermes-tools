@@ -8,9 +8,8 @@ description: Check the nc_* tools against a Nextcloud server — run after every
 Run top-to-bottom after every Nextcloud server upgrade (majors land ~every 4 months) and
 before any release. The endpoint inventory below is what the plugin actually calls —
 verified in `src/client.py`, `src/tools_*.py`. The checked-against server version is
-recorded in `.omp/skills/nc-compat-nextcloud/last-checked.json` at the end (step 9) and
+recorded in `.omp/skills/nc-compat-nextcloud/last-checked.json` at the end (step 10) and
 reported at the start of the next run (step 1).
-
 Endpoint inventory:
 - WebDAV: `/remote.php/dav/files/<user>/` (`src/client.py:171`),
   `/remote.php/dav/calendars/<user>/…` and `/addressbooks/<user>/…` (`src/client.py:177,182`),
@@ -40,20 +39,30 @@ Endpoint inventory:
    ~every 4 months, each supported 1 year. The oldest listed major is the compat floor.
    Get the live server's version from `/status.php` (`status.version`, e.g. `36.0.2`)
    and via `nc_ocs GET cloud/capabilities`; it must be >= floor. Save the server
-   version string — it becomes `target_version` in step 9.
+   version string — it becomes `target_version` in step 10.
    - Guidance: read the table at check time — never hardcode a floor (as of 2026-11 the
      docs site shows NC 36 latest / NC 35 stable).
    - Guardrail: if the server is below the floor, that is an upgrade-the-server finding,
      not a code change.
-3. **Release-notes sweep.** For each major from floor to the server's version, read
+3. **Check for a newer server major.** Re-read the maintenance/release schedule
+   table (same source as step 2) for the newest released major and the oldest
+   supported major (floor); compare both against `NC_TESTED_MAJOR_MIN` /
+   `NC_TESTED_MAJOR_MAX` in `src/compat.py`.
+   - If the live `/status.php` major or the newest released major exceeds
+     `NC_TESTED_MAJOR_MAX`: sweep steps 4–7 for that major and ONLY on final
+     result `pass` set `NC_TESTED_MAJOR_MAX` in `src/compat.py` to the highest
+     verified major and `NC_TESTED_MAJOR_MIN` to the wiki floor read at check
+     time; record via step 10.
+   - On `fail` the constants stay unchanged; name the reason in `notes`.
+4. **Release-notes sweep.** For each major from floor to the server's version, read
    https://github.com/nextcloud/server/releases and nextcloud.com/changelog and grep for
    `deprecated`/`removed` hitting the inventory above.
    - Guardrail: OCS app APIs are versioned (`api/v1`, `v2`, `v4`); an old version is only
      removed when the app ships a new one (Talk removed v1–v3 with v4 at NC 21) — a
      version bump in the notes is a breaking change for us.
-4. **Diff the per-version OCS overview** between floor and latest:
+5. **Diff the per-version OCS overview** between floor and latest:
    https://docs.nextcloud.com/server/<v>/developer_manual/client_apis/OCS/ocs-api-overview.html
-5. **Check app API docs.**
+6. **Check app API docs.**
    - Talk: https://nextcloud-talk.readthedocs.io/en/latest/ — we pin `api/v4`
      (`tools_talk.py:17`); watch for a v5. Talk version is in `cloud/capabilities`.
    - Notes: `/index.php/apps/notes/api/v1/notes` — watch for v2.
@@ -61,7 +70,7 @@ Endpoint inventory:
      `default_search_providers` in `plugin.yaml` (`files`, `fulltextsearch`,
      `talk-message`, `calendar`, `tasks`); fulltextsearch is an app-store app — check its
      `info.xml` NC min/max after server or app upgrades.
-6. **Live smoke through the tools themselves** (agent running against the real server):
+7. **Live smoke through the tools themselves** (agent running against the real server):
    `nc_ocs GET cloud/capabilities`, then one read per family — `nc_file_list`,
    `nc_search`, `nc_file_search`, `nc_share_list`, `nc_talk_rooms`, `nc_talk_messages`,
    `nc_cal_list`, `nc_task_list`, `nc_contact_list`, `nc_contact_search`, `nc_note_list`,
@@ -72,13 +81,13 @@ Endpoint inventory:
      `src/client` with real profile env, never as committed tests. MUST NOT guess an
      endpoint from memory when re-checking — look it up in the official docs and record
      the exact endpoint (same rule as the `nc-add-tool` skill).
-7. **On any family failure:** first re-check steps 3–5 for an API version bump before
+8. **On any family failure:** first re-check steps 4–6 for an API version bump before
    changing code; record the exact endpoint + server version in the issue; fix following
    the `nc-add-tool` runbook (schema, handler, TOOLS, plugin.yaml, guardrails, tests,
    version bump).
-8. **Repo checks.** `.venv/bin/python -m py_compile __init__.py src/*.py tests/*.py`
+9. **Repo checks.** `.venv/bin/python -m py_compile __init__.py src/*.py tests/*.py`
    and `.venv/bin/python -m pytest tests -q` — MUST pass.
-9. **Record this check.** Write `.omp/skills/nc-compat-nextcloud/last-checked.json` as a
+10. **Record this check.** Write `.omp/skills/nc-compat-nextcloud/last-checked.json` as a
    single JSON object with exactly these five keys (example):
    ```json
    {"skill": "nc-compat-nextcloud", "checked_at": "2026-11-07",
@@ -86,8 +95,10 @@ Endpoint inventory:
    ```
    `checked_at` = today's date (`YYYY-MM-DD`); `target_version` = the server version
    string from step 2 (`/status.php` `status.version`); `result` = `"pass"` only if
-   steps 2–8 all passed, else `"fail"`; `notes` = one line naming any broken family or
+   steps 2–9 all passed, else `"fail"`; `notes` = one line naming any broken family or
    API version bump found (may be empty).
    - Guardrails: write the file last, after all checks; exactly five keys, no extras;
      never hand-edit it between runs; the file stays untracked via the `.gitignore`
-     line `.omp/skills/*/last-checked.json` — MUST NOT be committed.
+     line `.omp/skills/*/last-checked.json` — MUST NOT be committed; on `pass`,
+     `NC_TESTED_MAJOR_MIN` in `src/compat.py` MUST equal the schedule floor read at
+     check time and the `target_version` major MUST be <= `NC_TESTED_MAJOR_MAX`.

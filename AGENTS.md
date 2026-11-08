@@ -37,6 +37,7 @@ surrounding style by hand. Every module MUST start with
 | `src/__init__.py` | `register(ctx)`: iterates tool modules, skips `disabled_tools`, registers each tool with `check_fn=client.configured` + `requires_env=list(client.KNOWN_ENV)`; registers `guardrails.guard` as the `pre_tool_call` hook |
 | `src/client.py` | HTTP layer: secret resolution, per-call config, `enc_path`, `redact`, `ok`/`err`, the `@tool` wrapper, cached client + retry, DAV helpers, OCS helper, read-back verification |
 | `src/guardrails.py` | `pre_tool_call` hook: READ_ONLY / WRITES / DESTRUCTIVE frozensets + arg-dispatch for `nc_comments` / `nc_ocs`; never raises, fails toward approve |
+| `src/compat.py` | Install-time Hermes/Nextcloud version check vs tested ranges; INFO within range, WARNING outside |
 | `src/schemas.py` | JSON schemas for every tool via the `_s(description, properties, required)` helper |
 | `src/tools_*.py` | One module per area (files, search, shares, talk, cal, contacts, notes, misc); each ends with `TOOLS = [("nc_x", schemas.NC_X, client.tool(_x)), ...]` |
 | `src/dav.py` | Multistatus parsing; props matched by local tag name (namespace-prefix agnostic) |
