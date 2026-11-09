@@ -123,7 +123,7 @@ function journalBulletCount(cwd: string): number {
 	}
 }
 
-/** Count file-wide auto bullets ("- … (src: <8 hex>)") in <cwd>/AGENTS.md via `count --all` (0 on any error). */
+/** Count file-wide auto bullets ("- … (src: <8 hex>)") in the repo-root AGENTS.md via `count --all` (0 on any error). */
 function autoBulletCount(cwd: string): number {
 	try {
 		const out = execFileSync(
