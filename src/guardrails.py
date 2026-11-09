@@ -31,7 +31,7 @@ READ_ONLY = frozenset({
 WRITES = frozenset({
     "nc_file_put", "nc_file_mkdir", "nc_file_move", "nc_share_create",
     "nc_talk_send", "nc_talk_react", "nc_cal_create", "nc_cal_edit",
-    "nc_task_create", "nc_task_complete", "nc_contact_create", "nc_contact_edit",
+    "nc_task_create", "nc_task_complete", "nc_task_reopen", "nc_contact_create", "nc_contact_edit",
     "nc_note_create", "nc_note_edit", "nc_tag_assign", "nc_tag_unassign",
     "nc_trash_restore",
 })

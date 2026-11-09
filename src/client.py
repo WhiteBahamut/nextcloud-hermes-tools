@@ -177,6 +177,12 @@ def cal_dav(calendar: str) -> str:
     return f"/remote.php/dav/calendars/{user}/{enc_path(calendar).strip('/')}/"
 
 
+def cal_home() -> str:
+    """DAV href of the user's calendar home (``/remote.php/dav/calendars/<user>/``)."""
+    user = quote(_secret("TALK_USER"), safe="")
+    return f"/remote.php/dav/calendars/{user}/"
+
+
 def book_dav(book: str) -> str:
     user = quote(_secret("TALK_USER"), safe="")
     return f"/remote.php/dav/addressbooks/{user}/{enc_path(book).strip('/')}/"

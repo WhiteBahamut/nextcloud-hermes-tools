@@ -5,7 +5,7 @@
 
 A native [Hermes Agent](https://github.com/NousResearch/hermes-agent) **directory plugin** that gives the agent first-class **Nextcloud tools** — files, full-text search, shares, Talk rooms, calendar, tasks, contacts, notes, activity and more — as real tool calls with schemas, instead of shelling out to curl.
 
-All 43 tools live in the `nextcloud` toolset. Every handler returns a JSON string and never raises; every write is verified by read-back; a `pre_tool_call` hook gates writes/destructive ops through the approval system.
+All 44 tools live in the `nextcloud` toolset. Every handler returns a JSON string and never raises; every write is verified by read-back; a `pre_tool_call` hook gates writes/destructive ops through the approval system.
 
 ## Table of Contents
 
@@ -39,7 +39,7 @@ All 43 tools live in the `nextcloud` toolset. Every handler returns a JSON strin
 | `nc_share_list` / `nc_share_create` / `nc_share_delete` | OCS files_sharing API | `shareType=0`, `permissions=31`; create verified via GET read-back |
 | `nc_talk_rooms` / `nc_talk_messages` / `nc_talk_send` / `nc_talk_delete` / `nc_talk_react` | Talk OCS v4 | DMs filtered (settings `talk_include_dms`, `talk_skip_tokens`), chat always `lookIntoFuture=0`, send verified by chat read-back |
 | `nc_cal_list` / `nc_cal_create` / `nc_cal_edit` / `nc_cal_delete` | CalDAV REPORT time-range + PUT/DELETE `If-Match` | Client-side RRULE expansion (cap 500), all-day `VALUE=DATE`, etags arrive HTML-escaped → unescaped before `If-Match`; shared calendars addressed by DAV dir `<name>_shared_by_<Owner>` |
-| `nc_task_list` / `nc_task_create` / `nc_task_complete` | VTODO via CalDAV | `NEEDS-ACTION`/`COMPLETED`; completion sets `STATUS:COMPLETED` + `COMPLETED` timestamp |
+| `nc_task_list` / `nc_task_create` / `nc_task_complete` / `nc_task_reopen` | VTODO via CalDAV | `NEEDS-ACTION`/`COMPLETED`; completion sets `STATUS:COMPLETED` + `COMPLETED` timestamp; reopen sets `STATUS:NEEDS-ACTION`, drops `COMPLETED`, `PERCENT-COMPLETE:0`; `nc_task_list` includes completed by default |
 | `nc_contact_list` / `nc_contact_search` / `nc_contact_get` / `nc_contact_create` / `nc_contact_edit` | CardDAV | CDATA stripping, vCard line unfolding, vCard 4.0 writes |
 | `nc_note_list` / `nc_note_get` / `nc_note_create` / `nc_note_edit` / `nc_note_delete` | `/index.php/apps/notes/api/v1/notes` | OCS path 998s on some servers → verified WebDAV `Notes/` fallback (title ↔ `<title>.txt`) |
 | `nc_activity` / `nc_notifications` | activity / notifications APIs | Bot account's own feed |

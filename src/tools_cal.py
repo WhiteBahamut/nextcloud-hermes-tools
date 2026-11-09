@@ -7,6 +7,8 @@
 - Writes always PUT with ``If-Match`` (clobber protection) and verify by
   read-back. All-day events use ``VALUE=DATE``. ``nc_cal_list`` defaults
   from = now-30d, to = now+90d; RRULEs are expanded client-side (cap 500).
+- A 404 from a missing calendar collection is self-healing: the error lists
+  the available collections (PROPFIND Depth 1 on the calendar home).
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ import html
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
+from urllib.parse import unquote
 from xml.sax.saxutils import escape as xml_escape
 
 from . import client, ical, schemas
@@ -125,6 +128,10 @@ def _event_dict(vevent, rstart, rend) -> dict:
     }
 
 
+class UidNotFound(client.NcError):
+    """No component with that UID (status 404) — distinct from a missing calendar collection."""
+
+
 def _resolve_uid(calendar, uid, comp="VEVENT"):
     """UID -> (href, etag); etag unescaped (etags arrive HTML-escaped in XML)."""
     cal_href = client.cal_dav(calendar)
@@ -135,7 +142,36 @@ def _resolve_uid(calendar, uid, comp="VEVENT"):
             continue
         etag = html.unescape(r["props"].get("getetag") or "")
         return href, etag
-    raise client.NcError(404, f"no {comp} with UID {uid} in calendar {calendar}")
+    raise UidNotFound(404, f"no {comp} with UID {uid} in calendar {calendar}")
+
+
+def _calendar_names() -> list[str]:
+    """DAV directory names of the user's calendar collections (for 404 error messages)."""
+    home = client.cal_home().rstrip("/")
+    resp = client.propfind(
+        client.cal_home(),
+        depth=1,
+        body='<d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/></d:prop></d:propfind>',
+    )
+    names = []
+    for r in parse_multistatus(resp.text):
+        href = r["href"].rstrip("/")
+        if href == home or r["props"].get("resourcetype") is not True:
+            continue
+        names.append(unquote(href).rsplit("/", 1)[-1])
+    return sorted(names)
+
+
+def _missing_calendar_err(calendar):
+    """404 on a missing calendar collection -> err JSON listing the available calendars."""
+    try:
+        available = _calendar_names()
+    except Exception:
+        available = []
+    msg = f"calendar '{calendar}' not found"
+    if available:
+        msg += f"; available calendars: {', '.join(available)}"
+    return client.err(msg, calendar=calendar, available=available)
 
 
 def _set_dt(comp, name, dt, all_day):
@@ -247,9 +283,16 @@ def _cal_delete(args):
 
 def _task_list(args):
     calendar = args.get("calendar") or "tasks"
-    include_completed = bool(args.get("include_completed"))
+    include_completed = args.get("include_completed")
+    if include_completed is None:
+        include_completed = True
     limit = int(args.get("limit") or 200)
-    resp = _report(client.cal_dav(calendar), _comp_query_body("VTODO"))
+    try:
+        resp = _report(client.cal_dav(calendar), _comp_query_body("VTODO"))
+    except client.NcError as exc:
+        if exc.status == 404:
+            return _missing_calendar_err(calendar)
+        raise
     tasks = []
     for r in parse_multistatus(resp.text):
         ics_text = r["props"].get("calendar-data")
@@ -288,7 +331,12 @@ def _task_create(args):
         priority=int(args.get("priority") or 0), description=args.get("description") or "",
     )
     href = client.cal_dav(calendar) + uid + ".ics"
-    _put_ics(href, body)
+    try:
+        _put_ics(href, body)
+    except client.NcError as exc:
+        if exc.status == 404:
+            return _missing_calendar_err(calendar)
+        raise
     got = client.dav_get(href).text
     if f"UID:{uid}" not in got or "STATUS:NEEDS-ACTION" not in got:
         return client.err(f"create verification failed for UID {uid}", calendar=calendar, uid=uid)
@@ -298,7 +346,14 @@ def _task_create(args):
 def _task_complete(args):
     calendar = args.get("calendar") or "tasks"
     uid = args["uid"]
-    href, etag = _resolve_uid(calendar, uid, "VTODO")
+    try:
+        href, etag = _resolve_uid(calendar, uid, "VTODO")
+    except UidNotFound:
+        raise
+    except client.NcError as exc:
+        if exc.status == 404:
+            return _missing_calendar_err(calendar)
+        raise
     vtodo = ical.first_component(ical.parse_ics(client.dav_get(href).text), "VTODO")
     if vtodo is None:
         return client.err(f"no VTODO at {href}")
@@ -312,6 +367,30 @@ def _task_complete(args):
     return client.ok(calendar=calendar, uid=uid, status="COMPLETED", verified=True)
 
 
+def _task_reopen(args):
+    calendar = args.get("calendar") or "tasks"
+    uid = args["uid"]
+    try:
+        href, etag = _resolve_uid(calendar, uid, "VTODO")
+    except UidNotFound:
+        raise
+    except client.NcError as exc:
+        if exc.status == 404:
+            return _missing_calendar_err(calendar)
+        raise
+    vtodo = ical.first_component(ical.parse_ics(client.dav_get(href).text), "VTODO")
+    if vtodo is None:
+        return client.err(f"no VTODO at {href}")
+    vtodo["props"]["STATUS"] = [({}, "NEEDS-ACTION")]
+    vtodo["props"].pop("COMPLETED", None)
+    vtodo["props"]["PERCENT-COMPLETE"] = [({}, "0")]
+    _put_ics(href, ical.wrap_calendar(ical.serialize_component(vtodo)), etag=etag)
+    got = client.dav_get(href).text
+    if f"UID:{uid}" not in got or "STATUS:NEEDS-ACTION" not in got or "COMPLETED:" in got:
+        return client.err(f"reopen verification failed for UID {uid}", calendar=calendar, uid=uid)
+    return client.ok(calendar=calendar, uid=uid, status="NEEDS-ACTION", verified=True)
+
+
 TOOLS = [
     ("nc_cal_list", schemas.NC_CAL_LIST, client.tool(_cal_list)),
     ("nc_cal_create", schemas.NC_CAL_CREATE, client.tool(_cal_create)),
@@ -320,4 +399,5 @@ TOOLS = [
     ("nc_task_list", schemas.NC_TASK_LIST, client.tool(_task_list)),
     ("nc_task_create", schemas.NC_TASK_CREATE, client.tool(_task_create)),
     ("nc_task_complete", schemas.NC_TASK_COMPLETE, client.tool(_task_complete)),
+    ("nc_task_reopen", schemas.NC_TASK_REOPEN, client.tool(_task_reopen)),
 ]

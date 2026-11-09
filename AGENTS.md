@@ -1,7 +1,7 @@
 # AGENTS.md — nextcloud-hermes-tools
 
 You are working in `nextcloud-hermes-tools`, a Hermes Agent **directory plugin** that
-gives the agent 43 `nc_*` tools (files, search, shares, Talk, calendar, tasks, contacts,
+gives the agent 44 `nc_*` tools (files, search, shares, Talk, calendar, tasks, contacts,
 notes, activity, tags, trashbin, comments, generic OCS) against one Nextcloud server.
 Python 3.10+, MIT.
 
@@ -36,7 +36,7 @@ surrounding style by hand. Every module MUST start with
 
 | Path | What |
 |---|---|
-| `plugin.yaml` | Hermes manifest: `provides_tools` (all 43 `nc_*`), `provides_hooks` (`pre_tool_call`), `config_schema` (settings incl. `disabled_tools`) |
+| `plugin.yaml` | Hermes manifest: `provides_tools` (all 44 `nc_*`), `provides_hooks` (`pre_tool_call`), `config_schema` (settings incl. `disabled_tools`) |
 | `__init__.py` | Root loader; exposes `register` / `TOOLSET` from `src/` |
 | `src/__init__.py` | `register(ctx)`: iterates tool modules, skips `disabled_tools`, registers each tool with `check_fn=client.configured` + `requires_env=list(client.KNOWN_ENV)`; registers `guardrails.guard` as the `pre_tool_call` hook |
 | `src/client.py` | HTTP layer: secret resolution, per-call config, `enc_path`, `redact`, `ok`/`err`, the `@tool` wrapper, cached client + retry, DAV helpers, OCS helper, read-back verification |
@@ -106,8 +106,8 @@ publishes a new release.
 Conventional commits — `feat:` / `fix:` / `perf:` / `security:` / `docs:` + short
 description (see `git log`). One logical change per PR.
 
-Before committing changes to `src/`, `tests/`, or `plugin.yaml`, MUST run the
-`nc-tool-review` and `nc-security-audit` subagents (via the `task` tool); the `version:` bump rides in the same commit.
+Before committing changes to `src/`, MUST run the `nc-tool-review` and
+`nc-security-audit` subagents (via the `task` tool).
 
 **Version bump is mandatory:** every commit MUST also bump `version:` in
 `plugin.yaml` (line 2) so Hermes sees the new version after `git pull`.

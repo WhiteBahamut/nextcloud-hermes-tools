@@ -57,7 +57,7 @@ the start of the next run (step 1).
 6. **Run the catalog checks.** `hermes plugins validate <repo root> --install-deps`
    and `hermes plugins doctor nextcloud-tools` — both MUST pass.
 7. **Load check in a real agent.** `hermes plugins list` (no load errors), then start
-   the agent once: expect the log line `nextcloud-tools registered 43 tools, 0 disabled`
+  the agent once: expect the log line `nextcloud-tools registered 44 tools, 0 disabled`
    (fewer only if `disabled_tools` is configured) and grep `agent.log`/`errors.log` for
    once-per-process WARNINGs naming this plugin (deprecations, legacy hook envelope).
    - Guardrail: an `ImportError` at load means a stale host import path — fix per step 5

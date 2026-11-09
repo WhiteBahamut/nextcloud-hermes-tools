@@ -1,4 +1,4 @@
-"""JSON-Schema definitions for all 43 nextcloud-tools.
+"""JSON-Schema definitions for all 44 nextcloud-tools.
 
 One dict per tool: ``{"description": ..., "parameters": {"type": "object", ...}}``.
 Descriptions teach the model when to call each tool.
@@ -203,10 +203,10 @@ NC_CAL_DELETE = _s(
     ["calendar", "uid"],
 )
 NC_TASK_LIST = _s(
-    "List tasks (VTODO) of a calendar (default 'tasks'). include_completed=true also returns COMPLETED tasks.",
+    "List tasks (VTODO) of a calendar (default 'tasks'). COMPLETED tasks are included by default (limit caps the noise); pass include_completed=false to hide them.",
     {
         "calendar": {**CAL, "default": "tasks"},
-        "include_completed": {"type": "boolean", "default": False},
+        "include_completed": {"type": "boolean", "default": True},
         "limit": {"type": "integer", "default": 200},
     },
 )
@@ -223,6 +223,11 @@ NC_TASK_CREATE = _s(
 )
 NC_TASK_COMPLETE = _s(
     "Mark a task COMPLETED (sets STATUS:COMPLETED + COMPLETED timestamp, PUT If-Match, verified). Gated.",
+    {"calendar": {**CAL, "default": "tasks"}, "uid": {"type": "string"}},
+    ["uid"],
+)
+NC_TASK_REOPEN = _s(
+    "Reopen a completed task: STATUS:NEEDS-ACTION, COMPLETED removed, PERCENT-COMPLETE:0 (href+etag via REPORT, PUT If-Match, verified read-back). Gated.",
     {"calendar": {**CAL, "default": "tasks"}, "uid": {"type": "string"}},
     ["uid"],
 )

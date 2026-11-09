@@ -20,6 +20,7 @@ def test_guard_matrix():
     assert g("", {}) is None
     w = g("nc_file_put", {"path": "/a.txt"})
     assert w["action"] == "approve" and w["rule_key"] == "nc-write" and "/a.txt" in w["message"]
+    assert g("nc_task_reopen", {"uid": "x"})["rule_key"] == "nc-write"
     d = g("nc_file_delete", {"path": "/a.txt"})
     assert d["action"] == "approve" and d["rule_key"] == "nc-destructive"
     assert g("nc_comments", {"action": "list", "file_id": "1"}) is None

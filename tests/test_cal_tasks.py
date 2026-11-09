@@ -166,9 +166,9 @@ def test_task_list_filters_completed(nc, call):
 
     nc.handler = h
     res = call("nc_task_list", {"calendar": "tasks"})
-    assert res["ok"] and [t["uid"] for t in res["tasks"]] == ["a"]
-    res = call("nc_task_list", {"calendar": "tasks", "include_completed": True})
-    assert sorted(t["uid"] for t in res["tasks"]) == ["a", "b"]
+    assert res["ok"] and sorted(t["uid"] for t in res["tasks"]) == ["a", "b"]
+    res = call("nc_task_list", {"calendar": "tasks", "include_completed": False})
+    assert [t["uid"] for t in res["tasks"]] == ["a"]
     assert res["tasks"][0]["due"] == "20261120"
 
 
@@ -218,3 +218,90 @@ def test_task_complete_sets_status_and_completed(nc, call):
     assert "STATUS:COMPLETED" in body and "COMPLETED:" in body and "PERCENT-COMPLETE:100" in body
     put = nc.find("PUT", "")[0]
     assert put.headers["If-Match"] == '"e"'
+
+
+def test_task_reopen_clears_completed_and_readback(nc, call):
+    uid = "task-1"
+    vtodo = (
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:task-1\r\nDTSTAMP:20261101T000000Z\r\n"
+        "SUMMARY:Do\r\nSTATUS:COMPLETED\r\nCOMPLETED:20261105T000000Z\r\nPERCENT-COMPLETE:100\r\n"
+        "END:VTODO\r\nEND:VCALENDAR\r\n"
+    )
+    state = {}
+
+    def h(req):
+        p = req.url.path
+        if req.method == "REPORT":
+            return multistatus([(f"{TASKS}/{uid}.ics",
+                                 f'<d:getetag>&amp;quot;e&amp;quot;</d:getetag><cal:calendar-data>{vtodo}</cal:calendar-data>')])
+        if req.method == "GET":
+            return httpx.Response(200, text=state.get(p, vtodo))
+        if req.method == "PUT":
+            state[p] = req.content.decode()
+            return httpx.Response(204)
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_task_reopen", {"calendar": "tasks", "uid": uid})
+    assert res["ok"] and res["status"] == "NEEDS-ACTION" and res["verified"]
+    body = state[f"{TASKS}/{uid}.ics"]
+    assert "STATUS:NEEDS-ACTION" in body and "PERCENT-COMPLETE:0" in body and "COMPLETED:" not in body
+    put = nc.find("PUT", "")[0]
+    assert put.headers["If-Match"] == '"e"'
+
+
+def test_task_reopen_verification_mismatch(nc, call):
+    uid = "task-2"
+    vtodo = (
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:task-2\r\nDTSTAMP:20261101T000000Z\r\n"
+        "SUMMARY:Do\r\nSTATUS:COMPLETED\r\nCOMPLETED:20261105T000000Z\r\nPERCENT-COMPLETE:100\r\n"
+        "END:VTODO\r\nEND:VCALENDAR\r\n"
+    )
+
+    def h(req):
+        p = req.url.path
+        if req.method == "REPORT":
+            return multistatus([(f"{TASKS}/{uid}.ics",
+                                 f'<d:getetag>&amp;quot;e&amp;quot;</d:getetag><cal:calendar-data>{vtodo}</cal:calendar-data>')])
+        if req.method == "GET":
+            return httpx.Response(200, text=vtodo)  # PUT never lands -> read-back mismatch
+        if req.method == "PUT":
+            return httpx.Response(204)
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_task_reopen", {"calendar": "tasks", "uid": uid})
+    assert res["ok"] is False and "reopen verification failed" in res["error"]
+
+
+def test_task_404_lists_available_calendars(nc, call):
+    home = "/remote.php/dav/calendars/bot"
+    collection = "<d:resourcetype><d:collection/></d:resourcetype>"
+
+    def h(req):
+        p = req.url.path
+        if req.method == "PROPFIND" and p.rstrip("/") == home:
+            return multistatus([
+                (f"{home}/", collection),
+                (f"{home}/personal/", collection),
+                (f"{home}/tasks/", collection),
+                (f"{home}/edeka_shared_by_Fabian/", collection),
+            ])
+        if req.method == "REPORT" and p.rstrip("/") == f"{home}/missing":
+            return httpx.Response(404, text="nf")
+        if req.method == "REPORT":
+            return multistatus([])  # existing calendar, UID not found
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_task_list", {"calendar": "missing"})
+    assert res["ok"] is False
+    assert "calendar 'missing' not found" in res["error"]
+    assert "edeka_shared_by_Fabian" in res["error"]
+    assert res["available"] == ["edeka_shared_by_Fabian", "personal", "tasks"]
+    res = call("nc_task_complete", {"calendar": "missing", "uid": "x"})
+    assert res["ok"] is False and "calendar 'missing' not found" in res["error"]
+    assert res["available"] == ["edeka_shared_by_Fabian", "personal", "tasks"]
+    res = call("nc_task_complete", {"calendar": "tasks", "uid": "x"})
+    assert res["ok"] is False and "no VTODO with UID x" in res["error"]
+    assert "available calendars" not in res["error"]
