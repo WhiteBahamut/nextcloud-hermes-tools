@@ -4,6 +4,9 @@ __pycache__/
 .omp/*
 !.omp/skills/
 !.omp/agents/
+!.omp/hooks/
+.omp/hooks/*
+!.omp/hooks/post/
 .omp/skills/*/last-checked.json
 .omp/agents/*/scripts/.cache/
 .omp/agents/*/scripts/.venv-check/

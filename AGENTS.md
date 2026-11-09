@@ -14,12 +14,16 @@ packaging config.
 **Style:** clear instructions in this file use imperative RFC 2119 keywords — `MUST` /
 `MUST NOT` for hard requirements (`NEVER` = `MUST NOT`, `AVOID` = `SHOULD NOT`).
 
+Skills and plans authored for this repo MUST use the same imperative RFC 2119 keywords, and every plan step MUST carry explicit Guidance, Guardrails, and a success Check.
+
+When editing files, re-read first — NEVER guess line numbers or edit anchors; if a multi-part edit is rejected, apply the fixes as separate single edits; if a file gets mangled, rewrite it wholesale.
+
 ## Do this first
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -q httpx pytest
 .venv/bin/python -m py_compile __init__.py src/*.py tests/*.py   # syntax check
-.venv/bin/python -m pytest tests -q                              # full suite (116 tests)
+.venv/bin/python -m pytest tests -q                              # full suite
 ```
 
 MUST run both commands before finishing ANY change. Tests MUST use `httpx.MockTransport`
@@ -82,10 +86,28 @@ See the `nc-add-tool` skill (`.omp/skills/nc-add-tool/SKILL.md`).
 
 See the `nc-compat-hermes` and `nc-compat-nextcloud` skills (`.omp/skills/`) for the regular Hermes/Nextcloud compatibility watchlist.
 
+Compat MUST be verifiable without installing the hosts: check against the pinned git-tag
+source — PyPI lags GitHub releases and pip-installing a tag fails on self-referential
+extras. For per-version Nextcloud API truth prefer machine-readable sources over the
+wiki: the app-store platform API (`apps.nextcloud.com/api/v1/platform/<ver>/apps.json`),
+per-major docs branches, GitHub changelog assets, app docs at raw tags; live truth via
+`/status.php` + `cloud/capabilities`.
+
+## Offline validation
+
+API-validation scripts MUST be offline and deterministic: committed pinned upstream
+bytes with a sha256 lock (`upstream_pins.json` / `upstream_lock.json`) under the owning
+agent's `.omp/agents/<name>/scripts/`; only caches and scratch venvs are git-ignored.
+The releases-feed pin is the deliberate tripwire — it MUST FAIL loudly when upstream
+publishes a new release.
+
 ## Git
 
 Conventional commits — `feat:` / `fix:` / `perf:` / `security:` / `docs:` + short
 description (see `git log`). One logical change per PR.
+
+Before committing changes to `src/`, `tests/`, or `plugin.yaml`, MUST run the
+`nc-tool-review` and `nc-security-audit` subagents (via the `task` tool); the `version:` bump rides in the same commit.
 
 **Version bump is mandatory:** every commit MUST also bump `version:` in
 `plugin.yaml` (line 2) so Hermes sees the new version after `git pull`.
@@ -97,9 +119,7 @@ is the dashboard tab's own version, not the plugin version — do not sync it.
 ## Never
 
 - MUST NOT add new third-party dependencies (runtime: `httpx` only; tests: `pytest` only).
-- MUST NOT use curl/shell workarounds for Nextcloud APIs — everything MUST go through
-  `src/client.py`.
+- MUST NOT use curl/shell workarounds for Nextcloud APIs — everything MUST go through `src/client.py`.
 - MUST NOT make real network calls in tests; MUST NOT change the Hermes host itself.
 - `dashboard/plugin_api.py` is host-only (fastapi) — MUST NOT be imported from the CLI
-  plugin or tests; MUST keep its wire contract with `dist/index.js` (`GET /tools`,
-  `PUT /tools/{name}`) in sync on both sides.
+  plugin or tests; MUST keep its wire contract with `dist/index.js` (`GET /tools`, `PUT /tools/{name}`) in sync on both sides.
