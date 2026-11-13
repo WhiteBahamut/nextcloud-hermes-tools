@@ -50,6 +50,7 @@ KEY_DEFAULTS = {
     "book": "contacts", "term": "demo", "message": "hello nc", "emoji": "+1",
     "share_with": "user2", "tag": "tag1", "title": "note title", "fn": "Jane Doe",
     "summary": "event", "start": "2026-11-08T10:00:00", "end": "2026-11-08T11:00:00",
+    "reminder": "-PT15M",
     "due": "2026-11-09T10:00:00", "content": "hello file", "note": "n",
     "from": "2026-11-01T00:00:00", "to": "2026-11-30T00:00:00",
 }

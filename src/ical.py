@@ -1,7 +1,9 @@
 """Minimal iCalendar (ICS) support — no external dependencies (no dateutil).
 
 - :func:`unfold` / :func:`parse_ics`: unfold continuation lines, parse components
-  into ``{"type": ..., "props": {NAME: [(params, value), ...]}}``.
+  into ``{"type": ..., "props": {NAME: [(params, value), ...]},
+  "components": [...]}`` — nested components (e.g. a VALARM inside a VEVENT)
+  are tracked in ``components`` while the flat top-level list is preserved.
 - :func:`build_vevent` / :func:`build_vtodo`: create components (UID=uuid4,
   DTSTAMP=now, ``VALUE=DATE`` for all-day).
 - :func:`expand_rrule`: client-side RRULE expansion supporting
@@ -11,6 +13,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
@@ -55,12 +58,13 @@ def parse_content_line(line: str):
 
 
 def parse_ics(text: str) -> list:
-    """Parse ICS text -> list of components ``{"type", "props"}`` (VEVENT/VTODO/...).
+    """Parse ICS text -> list of components ``{"type", "props", "components"}``.
 
     A stack tracks nesting: BEGIN pushes (every component is still appended to
-    the flat top-level list, preserving the historical shape), END pops, and
-    properties attach to the innermost open component — so a VALARM no longer
-    swallows the VEVENT properties that follow it.
+    the flat top-level list, preserving the historical shape; when a parent is
+    open, the new component is also appended to ``stack[-1]["components"]``),
+    END pops, and properties attach to the innermost open component — so a
+    VALARM no longer swallows the VEVENT properties that follow it.
     """
     components = []
     stack = []
@@ -69,8 +73,10 @@ def parse_ics(text: str) -> list:
             continue
         name, params, value = parse_content_line(line)
         if name == "BEGIN":
-            current = {"type": value.upper(), "props": {}}
+            current = {"type": value.upper(), "props": {}, "components": []}
             components.append(current)
+            if stack:
+                stack[-1]["components"].append(current)
             stack.append(current)
         elif name == "END":
             if stack:
@@ -168,12 +174,76 @@ def _dt_line(name: str, dt, all_day: bool) -> str:
     return f"{name};VALUE=DATE:{value}" if is_date else f"{name}:{value}"
 
 
+def unesc(text: str) -> str:
+    """Inverse of :func:`esc` — undo ICS text escaping (\\, \\; \\\\ \\n)."""
+    return re.sub(r"\\(.)", lambda m: "\n" if m.group(1) == "n" else m.group(1), str(text))
+
+
+_DURATION_RE = re.compile(
+    r"(?P<sign>-)?P(?:(?P<w>\d+)W)?(?:(?P<d>\d+)D)?"
+    r"(?:T(?:(?P<h>\d+)H)?(?:(?P<m>\d+)M)?(?:(?P<s>\d+)S)?)?"
+)
+
+
+def parse_duration(v: str) -> timedelta:
+    """Strict ISO 8601 duration -> timedelta: optional '-', then P[nW][nD][T[nH][nM][nS]]
+    with at least one component. Raises ValueError otherwise."""
+    s = (v or "").strip().upper()
+    m = _DURATION_RE.fullmatch(s)
+    if not m or not any(m.group(g) for g in ("w", "d", "h", "m", "s")):
+        raise ValueError(f"invalid ISO 8601 duration: {v!r}")
+    if "T" in s and not any(m.group(g) for g in ("h", "m", "s")):
+        raise ValueError(f"invalid ISO 8601 duration: {v!r}")
+    td = timedelta(
+        weeks=int(m.group("w") or 0), days=int(m.group("d") or 0),
+        hours=int(m.group("h") or 0), minutes=int(m.group("m") or 0),
+        seconds=int(m.group("s") or 0),
+    )
+    return -td if m.group("sign") else td
+
+
+def fmt_duration(td: timedelta) -> str:
+    """timedelta -> canonical signed ISO 8601 duration, e.g. '-PT15M', 'P1D', 'PT0S'."""
+    total = int(td.total_seconds())
+    sign = "-" if total < 0 else ""
+    total = abs(total)
+    weeks, rem = divmod(total, 7 * 86400)
+    days, rem = divmod(rem, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, seconds = divmod(rem, 60)
+    date_part = f"{weeks}W" if weeks else ""
+    date_part += f"{days}D" if days else ""
+    time_part = f"{hours}H" if hours else ""
+    time_part += f"{minutes}M" if minutes else ""
+    time_part += f"{seconds}S" if seconds else ""
+    if time_part:
+        return f"{sign}P{date_part}T{time_part}"
+    if date_part:
+        return f"{sign}P{date_part}"
+    return f"{sign}PT0S"
+
+
+def valarm(trigger: str, description: str) -> dict:
+    """VALARM component dict; ACTION:DISPLAY requires DESCRIPTION (RFC 5545)."""
+    return {
+        "type": "VALARM",
+        "props": {
+            "ACTION": [({}, "DISPLAY")],
+            "DESCRIPTION": [({}, esc(description))],
+            "TRIGGER": [({}, trigger)],
+        },
+        "components": [],
+    }
+
+
 def serialize_component(comp: dict) -> list:
     lines = [f"BEGIN:{comp['type']}"]
     for name, values in comp["props"].items():
         for params, value in values:
             p = "".join(f";{k}={v}" for k, v in params.items())
             lines.append(f"{name}{p}:{value}")
+    for child in comp.get("components", []):
+        lines.extend(serialize_component(child))
     lines.append(f"END:{comp['type']}")
     return lines
 
@@ -184,7 +254,7 @@ def wrap_calendar(comp_lines: list) -> str:
 
 
 def build_vevent(uid=None, summary="", start=None, end=None, all_day=False,
-                 description="", location="", rrule="", dtstamp=None) -> str:
+                 description="", location="", rrule="", reminder="", dtstamp=None) -> str:
     uid = uid or str(uuid.uuid4())
     dtstamp = dtstamp or datetime.now(timezone.utc)
     lines = [
@@ -201,6 +271,8 @@ def build_vevent(uid=None, summary="", start=None, end=None, all_day=False,
         lines.append(f"LOCATION:{esc(location)}")
     if rrule:
         lines.append(f"RRULE:{rrule}")
+    if reminder:
+        lines.extend(serialize_component(valarm(reminder, summary or "Reminder")))
     lines.append("END:VEVENT")
     return wrap_calendar(lines)
 

@@ -169,7 +169,7 @@ NC_CAL_LIST = _s(
     },
 )
 NC_CAL_CREATE = _s(
-    "Create a calendar event (PUT new .ics, verified read-back). Gated. start/end ISO 8601 (or YYYY-MM-DD when all_day). rrule e.g. 'FREQ=WEEKLY;BYDAY=MO,WE;COUNT=10'.",
+    "Create a calendar event (PUT new .ics, verified read-back). Gated. start/end ISO 8601 (or YYYY-MM-DD when all_day). rrule e.g. 'FREQ=WEEKLY;BYDAY=MO,WE;COUNT=10'. reminder is an optional ISO 8601 duration (e.g. '-PT15M') written as a VALARM TRIGGER relative to start.",
     {
         "calendar": {**CAL, "default": "personal"},
         "summary": {"type": "string"},
@@ -179,11 +179,12 @@ NC_CAL_CREATE = _s(
         "description": {"type": "string", "default": ""},
         "location": {"type": "string", "default": ""},
         "rrule": {"type": "string", "default": "", "description": "e.g. FREQ=DAILY;INTERVAL=2;COUNT=5 or FREQ=WEEKLY;BYDAY=MO,FR;UNTIL=20261231"},
+        "reminder": {"type": "string", "default": "", "description": "Optional ISO 8601 duration for a reminder VALARM TRIGGER relative to start, e.g. '-PT15M' = 15 min before. Empty = no reminder."},
     },
     ["summary", "start", "end"],
 )
 NC_CAL_EDIT = _s(
-    "Edit an existing event by UID (href+etag resolved via REPORT, PUT with If-Match, verified read-back). Only provided fields are changed. Gated.",
+    "Edit an existing event by UID (href+etag resolved via REPORT, PUT with If-Match, verified read-back). Only provided fields are changed. Gated. reminder sets/replaces the VALARM TRIGGER (ISO 8601 duration, e.g. '-PT15M'); 0, null or '' removes it.",
     {
         "calendar": CAL,
         "uid": {"type": "string", "description": "VEVENT UID."},
@@ -194,6 +195,7 @@ NC_CAL_EDIT = _s(
         "description": {"type": "string", "default": ""},
         "location": {"type": "string", "default": ""},
         "rrule": {"type": "string", "default": ""},
+        "reminder": {"type": ["string", "integer", "null"], "default": "", "description": "ISO 8601 duration string to set/replace the reminder VALARM (e.g. '-PT15M'); pass 0, null or '' to remove it."},
     },
     ["calendar", "uid"],
 )

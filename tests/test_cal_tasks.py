@@ -95,6 +95,196 @@ def test_cal_create_all_day_value_date_and_readback(nc, call):
     assert f"UID:{res['uid']}" in body and "RRULE:FREQ=YEARLY;COUNT=2" in body
 
 
+ALARM_ICS = (
+    "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:uid-rem\r\nDTSTAMP:20261101T000000Z\r\n"
+    "DTSTART:20261110T140000\r\nDTEND:20261110T150000\r\nSUMMARY:Standup\\, daily\r\n"
+    "BEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:old\r\nTRIGGER:-PT5M\r\nEND:VALARM\r\n"
+    "END:VEVENT\r\nEND:VCALENDAR\r\n"
+)
+
+
+def _edit_handler(nc, state, ics, uid):
+    def h(req):
+        p = req.url.path
+        if req.method == "REPORT":
+            return multistatus([(f"{CAL}/{uid}.ics",
+                                 f'<d:getetag>&amp;quot;e1&amp;quot;</d:getetag><cal:calendar-data>{ics}</cal:calendar-data>')])
+        if req.method == "GET":
+            return httpx.Response(200, text=state.get(p, ics))
+        if req.method == "PUT":
+            state[p] = req.content.decode()
+            return httpx.Response(204)
+        return httpx.Response(404, text="nf")
+    nc.handler = h
+
+
+def test_cal_create_with_reminder_valarm(nc, call):
+    state = {}
+
+    def h(req):
+        p = req.url.path
+        if req.method == "PUT":
+            state[p] = req.content.decode()
+            return httpx.Response(201)
+        if req.method == "GET":
+            return httpx.Response(200, text=state[p]) if p in state else httpx.Response(404, text="nf")
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_cal_create", {
+        "calendar": "personal", "summary": "Dentist", "start": "2026-11-10T14:00:00Z",
+        "end": "2026-11-10T15:00:00Z", "reminder": "-PT15M",
+    })
+    assert res["ok"] and res["verified"]
+    body = state[f"{CAL}/{res['uid']}.ics"]
+    assert "BEGIN:VALARM" in body
+    assert "TRIGGER:-PT15M" in body
+    assert "ACTION:DISPLAY" in body
+    assert "DESCRIPTION:Dentist" in body
+
+
+def test_cal_create_without_reminder_has_no_valarm(nc, call):
+    state = {}
+
+    def h(req):
+        p = req.url.path
+        if req.method == "PUT":
+            state[p] = req.content.decode()
+            return httpx.Response(201)
+        if req.method == "GET":
+            return httpx.Response(200, text=state[p]) if p in state else httpx.Response(404, text="nf")
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_cal_create", {
+        "calendar": "personal", "summary": "Plain", "start": "2026-11-10T14:00:00Z",
+        "end": "2026-11-10T15:00:00Z",
+    })
+    assert res["ok"] and res["verified"]
+    assert "VALARM" not in state[f"{CAL}/{res['uid']}.ics"]
+
+
+def test_cal_create_invalid_reminder_writes_nothing(nc, call):
+    nc.handler = lambda req: httpx.Response(404, text="nf")
+    res = call("nc_cal_create", {
+        "calendar": "personal", "summary": "X", "start": "2026-11-10T14:00:00Z",
+        "end": "2026-11-10T15:00:00Z", "reminder": "banana",
+    })
+    assert res["ok"] is False
+    assert "invalid reminder" in res["error"]
+    assert nc.find("PUT", "") == []
+
+
+def test_cal_edit_replaces_reminder_valarm(nc, call):
+    uid = "uid-rem"
+    state = {}
+    _edit_handler(nc, state, ALARM_ICS, uid)
+    res = call("nc_cal_edit", {"calendar": "personal", "uid": uid, "reminder": "-PT30M"})
+    assert res["ok"] and res["verified"]
+    body = state[f"{CAL}/{uid}.ics"]
+    assert "TRIGGER:-PT30M" in body
+    assert "TRIGGER:-PT5M" not in body
+    assert body.count("BEGIN:VALARM") == 1
+    assert "DESCRIPTION:Standup\\, daily" in body  # SUMMARY reused without double-escaping
+
+
+def test_cal_edit_reminder_zero_removes_valarm(nc, call):
+    uid = "uid-rem"
+    state = {}
+    _edit_handler(nc, state, ALARM_ICS, uid)
+    res = call("nc_cal_edit", {"calendar": "personal", "uid": uid, "reminder": 0})
+    assert res["ok"] and res["verified"]
+    assert "BEGIN:VALARM" not in state[f"{CAL}/{uid}.ics"]
+
+
+def test_cal_edit_preserves_valarm_on_other_edits(nc, call):
+    uid = "uid-rem"
+    state = {}
+    _edit_handler(nc, state, ALARM_ICS, uid)
+    res = call("nc_cal_edit", {"calendar": "personal", "uid": uid, "summary": "new"})
+    assert res["ok"] and res["verified"]
+    body = state[f"{CAL}/{uid}.ics"]
+    assert "BEGIN:VALARM" in body and "TRIGGER:-PT5M" in body
+
+
+def test_cal_edit_all_day_converts_dt_to_value_date(nc, call):
+    uid = "uid-ad"
+    ics = (
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:uid-ad\r\nDTSTAMP:20261101T000000Z\r\n"
+        "DTSTART:20261110T140000\r\nDTEND:20261110T150000\r\nSUMMARY:timed\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+    )
+    state = {}
+    _edit_handler(nc, state, ics, uid)
+    res = call("nc_cal_edit", {"calendar": "personal", "uid": uid, "all_day": True})
+    assert res["ok"] and res["verified"]
+    body = state[f"{CAL}/{uid}.ics"]
+    assert "DTSTART;VALUE=DATE:20261110" in body
+    assert "DTEND;VALUE=DATE:20261110" in body
+
+
+def test_cal_create_reminder_readback_mismatch_fails(nc, call):
+    state = {}
+
+    def h(req):
+        p = req.url.path
+        if req.method == "PUT":
+            state[p] = req.content.decode()
+            return httpx.Response(201)
+        if req.method == "GET":
+            if p not in state:
+                return httpx.Response(404, text="nf")
+            return httpx.Response(200, text=state[p].replace("TRIGGER:-PT15M", "TRIGGER:-PT1M"))
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_cal_create", {
+        "calendar": "personal", "summary": "Dentist", "start": "2026-11-10T14:00:00Z",
+        "end": "2026-11-10T15:00:00Z", "reminder": "-PT15M",
+    })
+    assert res["ok"] is False
+    assert "TRIGGER -PT15M" in res["error"]
+
+
+def test_cal_edit_reminder_set_readback_mismatch_fails(nc, call):
+    uid = "uid-rem"
+
+    def h(req):
+        p = req.url.path
+        if req.method == "REPORT":
+            return multistatus([(f"{CAL}/{uid}.ics",
+                                 f'<d:getetag>&amp;quot;e1&amp;quot;</d:getetag><cal:calendar-data>{ALARM_ICS}</cal:calendar-data>')])
+        if req.method == "GET":
+            return httpx.Response(200, text=ALARM_ICS)  # read-back still shows the old TRIGGER
+        if req.method == "PUT":
+            return httpx.Response(204)
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_cal_edit", {"calendar": "personal", "uid": uid, "reminder": "-PT30M"})
+    assert res["ok"] is False
+    assert "TRIGGER -PT30M" in res["error"]
+
+
+def test_cal_edit_reminder_removal_readback_mismatch_fails(nc, call):
+    uid = "uid-rem"
+
+    def h(req):
+        p = req.url.path
+        if req.method == "REPORT":
+            return multistatus([(f"{CAL}/{uid}.ics",
+                                 f'<d:getetag>&amp;quot;e1&amp;quot;</d:getetag><cal:calendar-data>{ALARM_ICS}</cal:calendar-data>')])
+        if req.method == "GET":
+            return httpx.Response(200, text=ALARM_ICS)  # read-back still contains the VALARM
+        if req.method == "PUT":
+            return httpx.Response(204)
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_cal_edit", {"calendar": "personal", "uid": uid, "reminder": 0})
+    assert res["ok"] is False
+    assert "VALARM still present" in res["error"]
+
+
 def test_cal_edit_unescapes_etag_into_if_match(nc, call):
     uid = "uid-1"
     # etag arrives HTML-escaped inside the XML (&amp;quot; -> text &quot; -> unescape ")

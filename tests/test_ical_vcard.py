@@ -40,6 +40,34 @@ def test_rrule_unsupported_freq_single_occurrence():
     assert occ == [datetime(2026, 1, 1, 9)]
 
 
+def test_parse_duration_and_fmt_duration_roundtrip():
+    from datetime import timedelta
+
+    assert ical.parse_duration("-PT15M") == timedelta(minutes=-15)
+    assert ical.fmt_duration(ical.parse_duration("-PT15M")) == "-PT15M"
+    assert ical.fmt_duration(ical.parse_duration("P1D")) == "P1D"
+    assert ical.fmt_duration(ical.parse_duration("PT1H30M")) == "PT1H30M"
+    assert ical.fmt_duration(ical.parse_duration("P1W")) == "P1W"
+    assert ical.fmt_duration(ical.parse_duration("-p1dt2h")) == "-P1DT2H"  # case-insensitive
+    assert ical.fmt_duration(timedelta(0)) == "PT0S"
+    for bad in ("P", "15M", "", "PT", "P1DT", "abc"):
+        try:
+            ical.parse_duration(bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"parse_duration({bad!r}) must raise ValueError")
+
+
+def test_build_vevent_reminder_valarm():
+    text = ical.build_vevent(summary="Meet", start=datetime(2026, 1, 1, 10), end=datetime(2026, 1, 1, 11), reminder="-PT15M")
+    assert "BEGIN:VALARM" in text and "ACTION:DISPLAY" in text
+    assert "TRIGGER:-PT15M" in text and "DESCRIPTION:Meet" in text
+    assert text.index("BEGIN:VALARM") < text.index("END:VEVENT")
+    plain = ical.build_vevent(summary="Meet", start=datetime(2026, 1, 1, 10), end=datetime(2026, 1, 1, 11))
+    assert "VALARM" not in plain
+
+
 def test_vcard_cdata_and_params():
     raw = "<![CDATA[BEGIN:VCARD\r\nVERSION:4.0\r\nUID:u\r\nFN:A\r\nTEL;TYPE=WORK,VOICE:+1\r\nEND:VCARD]]>"
     card = vcard.parse_vcard(raw)

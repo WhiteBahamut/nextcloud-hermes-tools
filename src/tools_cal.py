@@ -100,6 +100,16 @@ def _parse_duration(v: str) -> timedelta:
     return timedelta(days=d, hours=h, minutes=mi, seconds=s)
 
 
+def _reminder_trigger(v) -> str | None:
+    """reminder arg -> canonical VALARM TRIGGER (e.g. '-PT15M'), or None for 0/''/None
+    (no reminder / remove). Raises ValueError on anything else."""
+    if v is None or v == "" or v == 0:
+        return None
+    if not isinstance(v, str):
+        raise ValueError(f"reminder must be an ISO 8601 duration string, got {type(v).__name__}")
+    return ical.fmt_duration(ical.parse_duration(v.strip().upper()))
+
+
 def _event_dict(vevent, rstart, rend) -> dict:
     uid = ical.prop(vevent, "UID", "")
     dtstart_params, dtstart_val = ical.prop_with_params(vevent, "DTSTART")
@@ -216,16 +226,22 @@ def _cal_create(args):
         return client.err("start and end must be ISO 8601 (YYYY-MM-DD with all_day=true, or full datetime)")
     all_day = bool(args.get("all_day"))
     uid = str(uuid.uuid4())
+    try:
+        trigger = _reminder_trigger(args.get("reminder"))
+    except ValueError as e:
+        return client.err(f"invalid reminder: {e}")
     body = ical.build_vevent(
         uid=uid, summary=summary, start=start, end=end, all_day=all_day,
         description=args.get("description") or "", location=args.get("location") or "",
-        rrule=args.get("rrule") or "",
+        rrule=args.get("rrule") or "", reminder=trigger or "",
     )
     href = client.cal_dav(calendar) + uid + ".ics"
     _put_ics(href, body)
     got = client.dav_get(href).text
     if f"UID:{uid}" not in got:
         return client.err(f"create verification failed: UID {uid} not in read-back", calendar=calendar, uid=uid)
+    if trigger and trigger not in got:
+        return client.err(f"create verification failed: TRIGGER {trigger} not in read-back", calendar=calendar, uid=uid)
     return client.ok(calendar=calendar, uid=uid, verified=True)
 
 
@@ -257,10 +273,25 @@ def _cal_edit(args):
             vevent["props"]["RRULE"] = [({}, args["rrule"])]
         else:
             vevent["props"].pop("RRULE", None)
+    if "reminder" in args:
+        try:
+            trigger = _reminder_trigger(args["reminder"])
+        except ValueError as e:
+            return client.err(f"invalid reminder: {e}")
+        children = vevent.setdefault("components", [])
+        children[:] = [c for c in children if c["type"] != "VALARM"]
+        if trigger:
+            summary = ical.unesc(ical.prop(vevent, "SUMMARY", "") or "")
+            children.append(ical.valarm(trigger, summary or "Reminder"))
     _put_ics(href, ical.wrap_calendar(ical.serialize_component(vevent)), etag=etag)
     got = client.dav_get(href).text
     if f"UID:{uid}" not in got:
         return client.err(f"edit verification failed: UID {uid} not in read-back", calendar=calendar, uid=uid)
+    if "reminder" in args:
+        if trigger and trigger not in got:
+            return client.err(f"edit verification failed: TRIGGER {trigger} not in read-back", calendar=calendar, uid=uid)
+        if not trigger and "BEGIN:VALARM" in got:
+            return client.err("edit verification failed: VALARM still present in read-back", calendar=calendar, uid=uid)
     return client.ok(calendar=calendar, uid=uid, verified=True)
 
 
