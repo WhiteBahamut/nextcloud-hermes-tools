@@ -1,4 +1,4 @@
-"""Contacts tools — CardDAV under ``/remote.php/dav/addressbooks/<user>/<book>/``.
+"""Contacts tools — CardDAV under ``/remote.php/dav/addressbooks/users/<user>/<book>/``.
 
 - List via PROPFIND Depth 1 (``card:address-data``), CDATA stripped and lines
   unfolded before parsing.

@@ -62,6 +62,13 @@ def test_propfind_rejects_other_status(nc):
         client.propfind("/x", depth=1)
     assert ei.value.status == 500
 
+def test_book_dav_uses_users_principal_segment(nc):
+    assert client.book_dav("contacts") == "/remote.php/dav/addressbooks/users/bot/contacts/"
+    assert client.book_dav("my book") == "/remote.php/dav/addressbooks/users/bot/my%20book/"
+    with pytest.raises(client.NcError):
+        client.book_dav("../x")  # traversal still rejected before any request
+    assert not nc.requests
+
 
 def test_retry_once_on_connect_error(nc, monkeypatch):
     monkeypatch.setattr(client.time, "sleep", lambda _s: None)

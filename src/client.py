@@ -185,7 +185,7 @@ def cal_home() -> str:
 
 def book_dav(book: str) -> str:
     user = quote(_secret("TALK_USER"), safe="")
-    return f"/remote.php/dav/addressbooks/{user}/{enc_path(book).strip('/')}/"
+    return f"/remote.php/dav/addressbooks/users/{user}/{enc_path(book).strip('/')}/"
 
 
 # --- redaction / results -----------------------------------------------------

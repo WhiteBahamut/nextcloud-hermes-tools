@@ -2,7 +2,7 @@ import httpx
 from conftest import multistatus
 from nextcloud_tools import vcard
 
-BOOK = "/remote.php/dav/addressbooks/bot/contacts"
+BOOK = "/remote.php/dav/addressbooks/users/bot/contacts"
 FILES = "/remote.php/dav/files/bot"
 NOTES_API = "/index.php/apps/notes/api/v1/notes"
 

@@ -12,7 +12,7 @@ recorded in `.omp/skills/nc-compat-nextcloud/last-checked.json` at the end (step
 reported at the start of the next run (step 1).
 Endpoint inventory:
 - WebDAV: `/remote.php/dav/files/<user>/` (`src/client.py:171`),
-  `/remote.php/dav/calendars/<user>/…` and `/addressbooks/<user>/…` (`src/client.py:177,182`),
+  `/remote.php/dav/calendars/<user>/…` and `/addressbooks/users/<user>/…` (`src/client.py:177,186`),
   `/remote.php/dav/systemtags/`, `/trashbin/<user>/trash/`, `/comments/files/<fileId>`
   (`src/tools_misc.py:64,110,211`)
 - OCS v2 with header `OCS-APIRequest: true` (`src/client.py:305,415`):
