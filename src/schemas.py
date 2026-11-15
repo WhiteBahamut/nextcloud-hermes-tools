@@ -28,7 +28,7 @@ NC_FILE_LIST = _s(
     "List entries of a Nextcloud folder (WebDAV PROPFIND). depth '0' = the entry itself, '1' = direct children (default), 'infinity' = whole subtree (cap with limit).",
     {
         "path": {**PATH, "default": "/"},
-        "depth": {"type": "string", "enum": ["0", "1", "infinity"], "default": "1"},
+        "depth": {"type": "string", "enum": ["0", "1", "infinity"], "default": "1", "description": "PROPFIND depth: '0' = the entry itself, '1' = direct children (default), 'infinity' = whole subtree (cap with limit)."},
         "limit": {"type": "integer", "default": 200, "description": "Max entries returned."},
     },
 )
@@ -62,7 +62,7 @@ NC_FILE_MOVE = _s(
     {
         "source": {**PATH, "description": "Current path."},
         "destination": {**PATH, "description": "New full path."},
-        "overwrite": {"type": "boolean", "default": True},
+        "overwrite": {"type": "boolean", "default": True, "description": "Overwrite an existing destination (default true)."},
     },
     ["source", "destination"],
 )
@@ -91,9 +91,9 @@ NC_SEARCH = _s(
 NC_FILE_SEARCH = _s(
     "Filename search inside a folder subtree (PROPFIND Depth infinity + local case-insensitive filter; server-side DAV SEARCH is not implemented). Downloads the whole subtree — on large trees prefer nc_search with the files provider.",
     {
-        "term": {"type": "string"},
+        "term": {"type": "string", "description": "Filename substring to match (case-insensitive)."},
         "path": {**PATH, "default": "/"},
-        "limit": {"type": "integer", "default": 100},
+        "limit": {"type": "integer", "default": 100, "description": "Max entries returned."},
     },
     ["term"],
 )
@@ -111,13 +111,13 @@ NC_SHARE_CREATE = _s(
         "share_with": {"type": "string", "description": "User or group name (shareType 0)."},
         "share_type": {"type": "integer", "default": 0, "description": "0 = user/group, 3 = public link."},
         "permissions": {"type": "integer", "default": 1, "description": "Permission bitmask; 1 = read-only (default), 31 = all — pass explicitly."},
-        "note": {"type": "string", "default": ""},
+        "note": {"type": "string", "default": "", "description": "Optional note attached to the share."},
     },
     ["path", "share_with"],
 )
 NC_SHARE_DELETE = _s(
     "Delete a share by id. DESTRUCTIVE — gated; verified 404 afterwards.",
-    {"id": {"type": "integer"}},
+    {"id": {"type": "integer", "description": "Share id (from nc_share_list)."}},
     ["id"],
 )
 
@@ -125,13 +125,13 @@ NC_SHARE_DELETE = _s(
 
 NC_TALK_ROOMS = _s(
     "List Talk rooms. 1:1 DMs are excluded unless settings talk_include_dms; tokens listed in talk_skip_tokens are always dropped (e.g. the gateway-polled DM — never double-handle).",
-    {"limit": {"type": "integer", "default": 50}},
+    {"limit": {"type": "integer", "default": 50, "description": "Max rooms returned."}},
 )
 NC_TALK_MESSAGES = _s(
     "Read recent messages of a room (always sent with lookIntoFuture=0 — the gateway polls DMs separately). Paginate with last_known_message_id.",
     {
         "token": {"type": "string", "description": "Room token."},
-        "limit": {"type": "integer", "default": 50},
+        "limit": {"type": "integer", "default": 50, "description": "Max messages returned."},
         "last_known_message_id": {"type": "integer", "default": 0, "description": "Only messages after this id."},
     },
     ["token"],
@@ -139,24 +139,24 @@ NC_TALK_MESSAGES = _s(
 NC_TALK_SEND = _s(
     "Send a message to a Talk room; verified by chat read-back containing the new message id. Gated by the approval hook.",
     {
-        "token": {"type": "string"},
-        "message": {"type": "string"},
+        "token": {"type": "string", "description": "Room token (from nc_talk_rooms)."},
+        "message": {"type": "string", "description": "Message text to send."},
         "reply_to": {"type": "integer", "default": 0, "description": "Message id to reply to; 0 = top-level."},
     },
     ["token", "message"],
 )
 NC_TALK_DELETE = _s(
     "Delete a Talk message. DESTRUCTIVE — gated.",
-    {"token": {"type": "string"}, "message_id": {"type": "integer"}},
+    {"token": {"type": "string", "description": "Room token."}, "message_id": {"type": "integer", "description": "Message id to delete."}},
     ["token", "message_id"],
 )
 NC_TALK_REACT = _s(
     "Add (react=true) or remove (react=false) an emoji reaction on a message. Writes are gated.",
     {
-        "token": {"type": "string"},
-        "message_id": {"type": "integer"},
-        "emoji": {"type": "string"},
-        "react": {"type": "boolean", "default": True},
+        "token": {"type": "string", "description": "Room token."},
+        "message_id": {"type": "integer", "description": "Message id to react on."},
+        "emoji": {"type": "string", "description": "Emoji, e.g. '👍'."},
+        "react": {"type": "boolean", "default": True, "description": "true = add the reaction, false = remove it."},
     },
     ["token", "message_id", "emoji"],
 )
@@ -173,23 +173,23 @@ NC_CAL_LIST = _s(
         "to": {"type": "string", "default": "", "pattern": ISO_DT,
                "examples": ["2026-11-30T23:59:59Z", "2026-11-30"],
                "description": "ISO 8601 range end (date-only or datetime; Z or ±HH:MM offset optional). Used exactly as given — no timezone conversion."},
-        "limit": {"type": "integer", "default": 100},
+        "limit": {"type": "integer", "default": 100, "description": "Max events returned."},
     },
 )
 NC_CAL_CREATE = _s(
     "Create a calendar event (PUT new .ics, verified read-back). Gated. start/end ISO 8601 (or YYYY-MM-DD when all_day); keep one offset style per event (all Z or all ±HH:MM) — times are stored exactly as given, never converted. rrule e.g. 'FREQ=WEEKLY;BYDAY=MO,WE;COUNT=10'. reminder is an optional ISO 8601 duration (e.g. '-PT15M') written as a VALARM TRIGGER relative to start.",
     {
         "calendar": {**CAL, "default": "personal"},
-        "summary": {"type": "string"},
+        "summary": {"type": "string", "description": "Event title."},
         "start": {"type": "string", "pattern": ISO_DT,
                   "examples": ["2026-11-10T14:00:00+02:00", "2026-11-10T14:00:00Z", "2026-11-10"],
                   "description": "ISO 8601 start; a plain YYYY-MM-DD only together with all_day=true. Use the same offset style as end. Used exactly as given — no timezone conversion."},
         "end": {"type": "string", "pattern": ISO_DT,
                 "examples": ["2026-11-10T15:00:00+02:00", "2026-11-10T15:00:00Z", "2026-11-11"],
                 "description": "ISO 8601 end; a plain YYYY-MM-DD only together with all_day=true. Use the same offset style as start. Used exactly as given — no timezone conversion."},
-        "all_day": {"type": "boolean", "default": False},
-        "description": {"type": "string", "default": ""},
-        "location": {"type": "string", "default": ""},
+        "all_day": {"type": "boolean", "default": False, "description": "true = all-day event (start/end as plain YYYY-MM-DD)."},
+        "description": {"type": "string", "default": "", "description": "Event description."},
+        "location": {"type": "string", "default": "", "description": "Event location."},
         "rrule": {"type": "string", "default": "", "description": "e.g. FREQ=DAILY;INTERVAL=2;COUNT=5 or FREQ=WEEKLY;BYDAY=MO,FR;UNTIL=20261231"},
         "reminder": {"type": "string", "default": "", "description": "Optional ISO 8601 duration for a reminder VALARM TRIGGER relative to start, e.g. '-PT15M' = 15 min before. Empty = no reminder."},
     },
@@ -200,56 +200,56 @@ NC_CAL_EDIT = _s(
     {
         "calendar": CAL,
         "uid": {"type": "string", "description": "VEVENT UID."},
-        "summary": {"type": "string", "default": ""},
+        "summary": {"type": "string", "default": "", "description": "New title (empty = unchanged)."},
         "start": {"type": "string", "default": "", "pattern": ISO_DT,
                   "examples": ["2026-11-10T14:00:00+02:00", "2026-11-10"],
                   "description": "ISO 8601 start (empty = unchanged); a plain YYYY-MM-DD only together with all_day=true. Use the same offset style as end. Used exactly as given — no timezone conversion."},
         "end": {"type": "string", "default": "", "pattern": ISO_DT,
                 "examples": ["2026-11-10T15:00:00Z", "2026-11-11"],
                 "description": "ISO 8601 end (empty = unchanged); a plain YYYY-MM-DD only together with all_day=true. Use the same offset style as start. Used exactly as given — no timezone conversion."},
-        "all_day": {"type": "boolean", "default": False},
-        "description": {"type": "string", "default": ""},
-        "location": {"type": "string", "default": ""},
-        "rrule": {"type": "string", "default": ""},
+        "all_day": {"type": "boolean", "default": False, "description": "true = all-day event (start/end as plain YYYY-MM-DD)."},
+        "description": {"type": "string", "default": "", "description": "New description (empty = unchanged)."},
+        "location": {"type": "string", "default": "", "description": "New location (empty = unchanged)."},
+        "rrule": {"type": "string", "default": "", "description": "New recurrence rule; '' removes it; omit to keep."},
         "reminder": {"type": ["string", "integer", "null"], "default": "", "description": "ISO 8601 duration string to set/replace the reminder VALARM (e.g. '-PT15M'); pass 0, null or '' to remove it."},
     },
     ["calendar", "uid"],
 )
 NC_CAL_DELETE = _s(
     "Delete a calendar event by UID (DELETE with If-Match). DESTRUCTIVE — gated.",
-    {"calendar": CAL, "uid": {"type": "string"}},
+    {"calendar": CAL, "uid": {"type": "string", "description": "VEVENT UID as returned by nc_cal_list."}},
     ["calendar", "uid"],
 )
 NC_TASK_LIST = _s(
     "List tasks (VTODO) of a calendar (default 'tasks'). COMPLETED tasks are included by default (limit caps the returned list only); pass include_completed=false to hide them. Every successful response includes stats {total, open, closed} counted over ALL tasks in the calendar (closed = STATUS COMPLETED, open = everything else), independent of include_completed/limit; count = number of returned tasks.",
     {
         "calendar": {**CAL, "default": "tasks"},
-        "include_completed": {"type": "boolean", "default": True},
-        "limit": {"type": "integer", "default": 200},
+        "include_completed": {"type": "boolean", "default": True, "description": "Include COMPLETED tasks (default true)."},
+        "limit": {"type": "integer", "default": 200, "description": "Max tasks returned."},
     },
 )
 NC_TASK_CREATE = _s(
     "Create a task (VTODO; PUT + verified read-back). Initial status defaults to NEEDS-ACTION (open); pass status to set it (COMPLETED also sets COMPLETED timestamp and PERCENT-COMPLETE:100). Gated.",
     {
         "calendar": {**CAL, "default": "tasks"},
-        "summary": {"type": "string"},
+        "summary": {"type": "string", "description": "Task title."},
         "due": {"type": "string", "default": "", "pattern": ISO_DT,
                 "examples": ["2026-11-20T18:00:00+02:00", "2026-11-20"],
                 "description": "ISO 8601 datetime, or YYYY-MM-DD (stored as all-day VALUE=DATE); empty = no due date. Used exactly as given — no timezone conversion."},
         "priority": {"type": "integer", "default": 0, "description": "1 = highest ... 9 = lowest; 0 = none."},
-        "description": {"type": "string", "default": ""},
+        "description": {"type": "string", "default": "", "description": "Task description."},
         "status": {"type": "string", "enum": ["NEEDS-ACTION", "IN-PROCESS", "COMPLETED", "CANCELLED"], "default": "NEEDS-ACTION", "description": "Initial STATUS of the new task; default NEEDS-ACTION (open). COMPLETED also sets COMPLETED timestamp and PERCENT-COMPLETE:100."},
     },
     ["summary"],
 )
 NC_TASK_COMPLETE = _s(
     "Mark a task COMPLETED (sets STATUS:COMPLETED + COMPLETED timestamp, PUT If-Match, verified). Gated.",
-    {"calendar": {**CAL, "default": "tasks"}, "uid": {"type": "string"}},
+    {"calendar": {**CAL, "default": "tasks"}, "uid": {"type": "string", "description": "VTODO UID as returned by nc_task_list."}},
     ["uid"],
 )
 NC_TASK_REOPEN = _s(
     "Reopen a completed task: STATUS:NEEDS-ACTION, COMPLETED removed, PERCENT-COMPLETE:0 (href+etag via REPORT, PUT If-Match, verified read-back). Gated.",
-    {"calendar": {**CAL, "default": "tasks"}, "uid": {"type": "string"}},
+    {"calendar": {**CAL, "default": "tasks"}, "uid": {"type": "string", "description": "VTODO UID as returned by nc_task_list."}},
     ["uid"],
 )
 
@@ -257,16 +257,16 @@ NC_TASK_REOPEN = _s(
 
 NC_CONTACT_LIST = _s(
     "List contacts of an address book (CardDAV PROPFIND Depth 1; default book 'contacts').",
-    {"book": {**BOOK, "default": "contacts"}, "limit": {"type": "integer", "default": 500}},
+    {"book": {**BOOK, "default": "contacts"}, "limit": {"type": "integer", "default": 500, "description": "Max contacts returned."}},
 )
 NC_CONTACT_SEARCH = _s(
     "Search contacts by substring over name/email/phone (case-insensitive local filter on the parsed book).",
-    {"book": {**BOOK, "default": "contacts"}, "term": {"type": "string"}},
+    {"book": {**BOOK, "default": "contacts"}, "term": {"type": "string", "description": "Substring matched against name/email/phone (case-insensitive)."}},
     ["term"],
 )
 NC_CONTACT_GET = _s(
     "Get one contact by UID (fn, emails, phones, org, note).",
-    {"book": {**BOOK, "default": "contacts"}, "uid": {"type": "string"}},
+    {"book": {**BOOK, "default": "contacts"}, "uid": {"type": "string", "description": "Contact UID (from nc_contact_list)."}},
     ["uid"],
 )
 NC_CONTACT_CREATE = _s(
@@ -274,10 +274,10 @@ NC_CONTACT_CREATE = _s(
     {
         "book": {**BOOK, "default": "contacts"},
         "fn": {"type": "string", "description": "Full name (required by vCard)."},
-        "email": {"type": "string", "default": ""},
-        "phone": {"type": "string", "default": ""},
-        "org": {"type": "string", "default": ""},
-        "note": {"type": "string", "default": ""},
+        "email": {"type": "string", "default": "", "description": "Email address."},
+        "phone": {"type": "string", "default": "", "description": "Phone number."},
+        "org": {"type": "string", "default": "", "description": "Organization."},
+        "note": {"type": "string", "default": "", "description": "Free-form note."},
     },
     ["fn"],
 )
@@ -285,12 +285,12 @@ NC_CONTACT_EDIT = _s(
     "Edit a contact by UID (GET, modify provided fields, PUT with If-Match, verified). Gated.",
     {
         "book": {**BOOK, "default": "contacts"},
-        "uid": {"type": "string"},
-        "fn": {"type": "string", "default": ""},
+        "uid": {"type": "string", "description": "Contact UID to edit (from nc_contact_list)."},
+        "fn": {"type": "string", "default": "", "description": "New full name (empty = unchanged)."},
         "email": {"type": ["string", "array"], "items": {"type": "string"}, "default": "", "description": "Email address or list of addresses; pass '' or [] to clear all. Omit to keep existing."},
         "phone": {"type": ["string", "array"], "items": {"type": "string"}, "default": "", "description": "Phone number or list of numbers; pass '' or [] to clear all. Omit to keep existing."},
-        "org": {"type": "string", "default": ""},
-        "note": {"type": "string", "default": ""},
+        "org": {"type": "string", "default": "", "description": "New organization; '' clears it; omit to keep."},
+        "note": {"type": "string", "default": "", "description": "New note; '' clears it; omit to keep."},
     },
     ["uid"],
 )
@@ -300,7 +300,7 @@ NC_CONTACT_EDIT = _s(
 NC_NOTE_LIST = _s(
     "List notes (Notes app API; falls back to the WebDAV 'Notes/' folder when the API is unavailable). API content is truncated to a 200-char preview; DAV content is only fetched with with_content=true (default false = metadata only).",
     {
-        "category": {"type": "string", "default": ""},
+        "category": {"type": "string", "default": "", "description": "Restrict to this category (empty = all)."},
         "limit": {"type": "integer", "default": 50, "description": "Max notes returned."},
         "with_content": {"type": "boolean", "default": False, "description": "DAV fallback: include a 200-char content preview per note (costs one GET per note)."},
     },
@@ -313,20 +313,20 @@ NC_NOTE_GET = _s(
 NC_NOTE_CREATE = _s(
     "Create a note. Gated; verified by read-back.",
     {
-        "title": {"type": "string"},
-        "content": {"type": "string", "default": ""},
-        "category": {"type": "string", "default": ""},
+        "title": {"type": "string", "description": "Note title (also the DAV filename)."},
+        "content": {"type": "string", "default": "", "description": "Note body (markdown)."},
+        "category": {"type": "string", "default": "", "description": "Category (folder)."},
     },
     ["title"],
 )
 NC_NOTE_EDIT = _s(
     "Edit note content and/or title. Gated; verified by read-back.",
-    {"id": {"type": "string"}, "content": {"type": "string", "default": ""}, "title": {"type": "string", "default": ""}},
+    {"id": {"type": "string", "description": "Note id (API) or title (DAV fallback)."}, "content": {"type": "string", "default": "", "description": "New content; '' clears the note."}, "title": {"type": "string", "default": "", "description": "New title (renames the note)."}},
     ["id"],
 )
 NC_NOTE_DELETE = _s(
     "Delete a note. DESTRUCTIVE — gated.",
-    {"id": {"type": "string"}},
+    {"id": {"type": "string", "description": "Note id (API) or title (DAV fallback)."}},
     ["id"],
 )
 
@@ -335,13 +335,13 @@ NC_NOTE_DELETE = _s(
 NC_ACTIVITY = _s(
     "Recent activity of the bot account (file/calendar actions).",
     {
-        "limit": {"type": "integer", "default": 50},
+        "limit": {"type": "integer", "default": 50, "description": "Max entries returned."},
         "since": {"type": "integer", "default": 0, "description": "Unix timestamp; only newer entries."},
     },
 )
 NC_NOTIFICATIONS = _s(
     "Pending OCS notifications of the bot account itself.",
-    {"limit": {"type": "integer", "default": 50}},
+    {"limit": {"type": "integer", "default": 50, "description": "Max notifications returned."}},
 )
 NC_TAG_LIST = _s("List all system tags.", {})
 NC_TAG_ASSIGN = _s(
@@ -351,12 +351,12 @@ NC_TAG_ASSIGN = _s(
 )
 NC_TAG_UNASSIGN = _s(
     "Remove a system tag from a file/folder (PROPPATCH + verified read-back). Gated.",
-    {"path": PATH, "tag": {"type": "string"}},
+    {"path": PATH, "tag": {"type": "string", "description": "Tag name (see nc_tag_list)."}},
     ["path", "tag"],
 )
 NC_TRASH_LIST = _s(
     "List trashbin entries (original location, deletion time, size).",
-    {"limit": {"type": "integer", "default": 100}},
+    {"limit": {"type": "integer", "default": 100, "description": "Max entries returned."}},
 )
 NC_TRASH_RESTORE = _s(
     "Restore a trashbin entry to its original location (MOVE with Overwrite: F, verified). Gated.",
@@ -370,7 +370,7 @@ NC_TRASH_EMPTY = _s(
 NC_COMMENTS = _s(
     "File comments (comments DAV). action=list is read-only; add is a gated write; delete is DESTRUCTIVE. Give `file_id` or `path` (path is resolved to oc:fileid via PROPFIND).",
     {
-        "action": {"type": "string", "enum": ["list", "add", "delete"], "default": "list"},
+        "action": {"type": "string", "enum": ["list", "add", "delete"], "default": "list", "description": "'list' (read-only), 'add' (gated write) or 'delete' (destructive)."},
         "file_id": {"type": "string", "default": "", "description": "Numeric file id."},
         "path": {**PATH, "default": ""},
         "message": {"type": "string", "default": "", "description": "Comment text (action=add)."},
@@ -378,9 +378,9 @@ NC_COMMENTS = _s(
     },
 )
 NC_OCS = _s(
-    "Generic OCS v2 escape hatch for any unmapped endpoint under /ocs/v2.php/. The path must NOT start with '/' and must NOT contain '..' (traversal is rejected before any request).",
+    "Generic OCS v2 escape hatch for any unmapped endpoint under /ocs/v2.php/. The path must NOT start with '/' and must NOT contain '..' (traversal is rejected before any request). Talk room management (create/invite/leave/topic) needs a CSRF token from GET /index.php/csrftoken and is not covered by these tools. Large `data` payloads are truncated host-side — prefer narrow endpoints.",
     {
-        "method": {"type": "string", "enum": ["GET", "POST"], "default": "GET"},
+        "method": {"type": "string", "enum": ["GET", "POST"], "default": "GET", "description": "HTTP method; GET is read-only, POST is a gated write."},
         "path": {"type": "string", "description": "OCS path after /ocs/v2.php/, e.g. 'apps/spreed/api/v4/room'."},
         "params": {"type": "object", "default": {}, "description": "Query parameters (GET)."},
         "data": {"type": "object", "default": {}, "description": "Form fields (POST)."},
