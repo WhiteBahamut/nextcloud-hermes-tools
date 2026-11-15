@@ -130,3 +130,92 @@ def test_note_list_preview_truncated(nc, call):
     res = call("nc_note_list", {})
     assert res["ok"] and res["via"] == "api"
     assert len(res["notes"][0]["content"]) == 201  # 200 chars + ellipsis
+
+
+def test_note_edit_content_uses_put_notes_id_route(nc, call):
+    def h(req):
+        p = req.url.path
+        if p == f"{NOTES_API}/7" and req.method == "PUT":
+            return httpx.Response(200, json={"id": 7, "title": "T", "content": "new body"})
+        if p == f"{NOTES_API}/7" and req.method == "GET":
+            return httpx.Response(200, json={"id": 7, "title": "T", "content": "new body"})
+        return httpx.Response(998, text="x")
+
+    nc.handler = h
+    res = call("nc_note_edit", {"id": "7", "content": "new body"})
+    assert res["ok"] and res["via"] == "api" and res["verified"] and res["title"] == "T"
+    puts = nc.find("PUT", NOTES_API)
+    assert len(puts) == 1 and puts[0].url.path == f"{NOTES_API}/7"
+    assert not any("/content" in r.url.path for r in nc.requests)  # no nonexistent /content route
+
+
+def test_note_edit_dav_fallback_numeric_id_creates_no_sidecar(nc, call):
+    def h(req):
+        p = req.url.path
+        if p.startswith("/index.php/apps/notes"):
+            return httpx.Response(998, text="api down")
+        if req.method == "PROPFIND" and p == f"{FILES}/Notes":
+            return multistatus([(f"{FILES}/Notes", "")])  # empty Notes folder
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_note_edit", {"id": "195476", "content": "v2"})
+    assert res["ok"] is False
+    assert not any(r.method == "PUT" and "/Notes/" in r.url.path for r in nc.requests)  # no <id>.txt sidecar
+
+
+def test_note_edit_dav_fallback_edits_existing_md(nc, call):
+    state = {}
+    note_href = f"{FILES}/Notes/My%20note.md"
+
+    def h(req):
+        p = req.url.path
+        if p.startswith("/index.php/apps/notes"):
+            return httpx.Response(998, text="api down")
+        if req.method == "PROPFIND" and p == f"{FILES}/Notes":
+            return multistatus([
+                (f"{FILES}/Notes", ""),
+                (note_href, "<oc:getcontentlength>3</oc:getcontentlength>"),
+            ])
+        if req.method == "PUT":
+            state[p] = req.content
+            return httpx.Response(201)
+        if req.method == "GET":
+            return httpx.Response(200, content=state[p]) if p in state else httpx.Response(404, text="nf")
+        if req.method == "DELETE":
+            state.pop(p, None)
+            return httpx.Response(204)
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_note_edit", {"id": "My note", "content": "v2"})
+    assert res["ok"] and res["via"] == "dav" and res["verified"]
+    assert state[f"{FILES}/Notes/My note.md"] == b"v2"  # req.url.path is decoded; raw_path keeps %20
+
+
+def test_note_get_by_title_finds_md(nc, call):
+    def h(req):
+        p = req.url.path
+        if p.startswith("/index.php/apps/notes"):
+            return httpx.Response(400, text="bad request")  # API cannot resolve a title id
+        if req.method == "GET" and p == f"{FILES}/Notes/Title.md":
+            return httpx.Response(200, content=b"md body")
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_note_get", {"id": "Title"})
+    assert res["ok"] and res["via"] == "dav" and res["content"] == "md body"
+
+
+def test_note_edit_api_readback_mismatch_returns_err(nc, call):
+    def h(req):
+        p = req.url.path
+        if p == f"{NOTES_API}/7" and req.method == "PUT":
+            return httpx.Response(200, json={"id": 7, "title": "T", "content": "new body"})
+        if p == f"{NOTES_API}/7" and req.method == "GET":
+            return httpx.Response(200, json={"id": 7, "title": "T", "content": "stale"})  # read-back mismatch
+        return httpx.Response(998, text="x")
+
+    nc.handler = h
+    res = call("nc_note_edit", {"id": "7", "content": "new body"})
+    assert res["ok"] is False and "read-back mismatch" in res["error"]

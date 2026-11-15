@@ -216,22 +216,21 @@ def _comments(args):
         message = args.get("message") or ""
         if not message:
             return client.err("message required")
-        body = (
-            '<?xml version="1.0" encoding="utf-8"?>'
-            '<d:propertyupdate xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">'
-            "<d:set><d:prop>"
-            f"<oc:message>{xml_escape(message)}</oc:message>"
-            "</d:prop></d:set></d:propertyupdate>"
+        # NC 35 CommentsPlugin::createComment() is JSON-only: it throws
+        # UnsupportedMediaType (415) for XML propertyupdate bodies.
+        resp = client.request(
+            "POST", base + "/",
+            json_body={"actorType": "users", "message": message, "verb": "comment"},
         )
-        client.require(
-            client.request("POST", base + "/", content=body.encode("utf-8"),
-                           headers={"Content-Type": "application/xml; charset=utf-8"}),
-            (200, 201, 204),
-        )
+        if resp.status_code not in (200, 201, 204):
+            raise client.NcError(resp.status_code, client.resp_message(resp))
+        location = resp.headers.get("Content-Location", "")
+        comment_id = client.redact(location.rstrip("/").rsplit("/", 1)[-1]) if location else ""
         msgs = [c["message"] for c in _comments_list(base, file_id)]
         if message not in msgs:
             return client.err("add verification failed: message not in read-back", file_id=file_id)
-        return client.ok(file_id=file_id, added=True, verified=True)
+        return client.ok(file_id=file_id, added=True, verified=True,
+                         **({"comment_id": comment_id} if comment_id else {}))
     if action == "delete":
         cid = int(args.get("comment_id") or 0)
         if not cid:

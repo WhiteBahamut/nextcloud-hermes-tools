@@ -50,8 +50,28 @@ def _note_obj(raw: dict, preview=False) -> dict:
 # --- WebDAV fallback -------------------------------------------------------------
 
 
+_NOTE_SUFFIXES = (".md", ".txt")
+
+
 def _dav_notes_href(title) -> str:
+    """Create-path for a DAV-fallback note (legacy .txt convention, kept)."""
     return client.files_dav("Notes/" + title + ".txt")
+
+
+def _dav_resolve(title):
+    """href of existing Notes/<title>.md|.txt via PROPFIND depth 1, else None."""
+    base = client.files_dav("Notes")
+    prefix = client.files_dav("/").rstrip("/")
+    resp = client.propfind(base, depth=1, body=PROPFIND_ALL)
+    for r in parse_multistatus(resp.text):
+        entry = entry_from_response(r, prefix)
+        name = entry["name"]
+        if entry["is_dir"] or "." not in name:
+            continue
+        stem, _, suffix = name.rpartition(".")
+        if suffix.lower() in ("md", "txt") and stem == title:
+            return client.files_dav("Notes/" + name)
+    return None
 
 
 def _dav_list(category="", limit=50, with_content=False):
@@ -64,13 +84,17 @@ def _dav_list(category="", limit=50, with_content=False):
         if unquote(r["href"]).rstrip("/") == target:
             continue
         entry = entry_from_response(r, prefix)
-        if entry["is_dir"] or not entry["name"].endswith(".txt"):
+        name = entry["name"]
+        if entry["is_dir"] or "." not in name:
             continue
-        title = entry["name"][:-4]
+        stem, _, suffix = name.rpartition(".")
+        if suffix.lower() not in ("md", "txt"):
+            continue
+        title = stem
         note = {"id": title, "title": title, "category": category, "size": entry["size"]}
         if with_content:
             try:
-                note["content"] = _preview(client.dav_get(_dav_notes_href(title)).text)
+                note["content"] = _preview(client.dav_get(client.files_dav("Notes/" + name)).text)
             except client.NcError:
                 pass
         notes.append(note)
@@ -80,25 +104,36 @@ def _dav_list(category="", limit=50, with_content=False):
 
 
 def _dav_get(title):
-    href = _dav_notes_href(title)
-    resp = client.dav_get(href)  # raises NcError(404) when missing
-    return {"id": title, "title": title, "category": "", "content": resp.text}
+    last_exc = None
+    for suffix in _NOTE_SUFFIXES:
+        href = client.files_dav(f"Notes/{title}{suffix}")
+        try:
+            resp = client.dav_get(href)
+            return {"id": title, "title": title, "category": "", "content": resp.text}
+        except client.NcError as exc:
+            last_exc = exc
+    raise last_exc
 
 
-def _dav_put(title, content):
-    href = _dav_notes_href(title)
+def _dav_put(title, content, href=None):
+    href = href or _dav_notes_href(title)
     data = (content or "").encode("utf-8")
-    try:
-        client.put_verified(href, data, content_type="text/plain; charset=utf-8")
-    except client.NcError as exc:
-        raise client.NcError(exc.status, exc.message)
+    client.put_verified(href, data, content_type="text/plain; charset=utf-8")
 
 
 def _dav_delete(title):
-    href = _dav_notes_href(title)
-    client.require(client.dav_delete(href), (200, 204))
-    if not client.verify_gone(href):
-        raise client.NcError(500, f"delete verification failed: Notes/{title}.txt still present")
+    last_exc = None
+    for suffix in _NOTE_SUFFIXES:
+        href = client.files_dav(f"Notes/{title}{suffix}")
+        try:
+            client.require(client.dav_delete(href), (200, 204))
+        except client.NcError as exc:
+            last_exc = exc
+            continue
+        if client.verify_gone(href):
+            return
+        raise client.NcError(500, f"delete verification failed: {href} still present")
+    raise last_exc
 
 
 # --- handlers --------------------------------------------------------------------
@@ -148,29 +183,41 @@ def _note_edit(args):
     note_id = str(args["id"])
     content = args.get("content")
     title = args.get("title") or ""
+    if content is None and not title:
+        return client.err("nothing to edit: provide content and/or title")
+    data = {}
     if content is not None:
-        ok_api, _ = _api("PUT", f"/{note_id}/content", data={"content": content})
-        if ok_api:
-            if title:
-                _api("PUT", f"/{note_id}", data={"title": title})
-            ok_check, check = _api("GET", f"/{note_id}")
-            if ok_check and isinstance(check, dict) and (check.get("content") == content if content is not None else True):
-                return client.ok(id=note_id, title=check.get("title", title), verified=True, via="api")
-            return client.err(f"edit verification failed: note {note_id} read-back mismatch", id=note_id)
-        # DAV fallback
-        _dav_put(note_id, content)
-        if title and title != note_id:
-            _dav_put(title, content)
-            _dav_delete(note_id)
-        return client.ok(id=title or note_id, title=title or note_id, verified=True, via="dav")
+        data["content"] = content
     if title:
-        ok_api, _ = _api("PUT", f"/{note_id}", data={"title": title})
-        if ok_api:
-            return client.ok(id=note_id, title=title, verified=True, via="api")
-        _dav_put(title, client.dav_get(_dav_notes_href(note_id)).text)
-        _dav_delete(note_id)
-        return client.ok(id=title, title=title, verified=True, via="dav")
-    return client.err("nothing to edit: provide content and/or title")
+        data["title"] = title
+    # Notes API v1 has a single update route: PUT /notes/{id} with an attribute
+    # body (there is no /notes/{id}/content route).
+    ok_api, _payload = _api("PUT", f"/{note_id}", data=data)
+    if ok_api:
+        ok_check, check = _api("GET", f"/{note_id}")
+        if ok_check and isinstance(check, dict) and \
+                (content is None or check.get("content") == content) and \
+                (not title or check.get("title") == title):
+            return client.ok(id=note_id, title=check.get("title") or title, verified=True, via="api")
+        return client.err(f"edit verification failed: note {note_id} read-back mismatch", id=note_id)
+    # WebDAV fallback: edit the existing .md/.txt file; never create a
+    # <numeric-id>.txt sidecar for an API note when the API is unavailable.
+    href = _dav_resolve(note_id) or (_dav_resolve(title) if title else None)
+    if href is None:
+        if note_id.isdigit():
+            return client.err(
+                f"cannot edit note {note_id}: Notes API unavailable and no Notes/{note_id}.md/.txt file",
+                id=note_id)
+        href = _dav_notes_href(note_id)  # DAV-mode note: id is the title; create as .txt
+    if content is not None:
+        _dav_put(note_id, content, href=href)
+    if title and title != note_id:
+        old = client.dav_get(href).text if content is None else content
+        _dav_put(title, old)
+        client.require(client.dav_delete(href), (200, 204))
+        if not client.verify_gone(href):
+            raise client.NcError(500, f"rename verification failed: {href} still present")
+    return client.ok(id=title or note_id, title=title or note_id, verified=True, via="dav")
 
 
 def _note_delete(args):

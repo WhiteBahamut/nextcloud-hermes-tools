@@ -1,4 +1,5 @@
 import httpx
+import json
 import pytest
 import conftest
 from conftest import FakeCtx, multistatus, ocs_ok
@@ -180,6 +181,66 @@ def test_comments_resolves_path_to_fileid(nc, call):
     res = call("nc_comments", {"action": "list", "path": "/a.txt"})
     assert res["ok"] and res["file_id"] == "4242"
     assert res["comments"][0]["message"] == "hi there" and res["comments"][0]["actor"] == "bot"
+
+
+def test_comments_add_posts_json_and_verifies(nc, call):
+    posted = {}
+
+    def h(req):
+        p = req.url.path
+        if req.method == "POST" and p == "/remote.php/dav/comments/files/4242/":
+            posted["content_type"] = req.headers["Content-Type"]
+            posted["body"] = req.content
+            return httpx.Response(
+                201,
+                headers={"Content-Location": "https://nc.example/remote.php/dav/comments/files/4242/10207"},
+            )
+        if req.method == "PROPFIND" and p.startswith("/remote.php/dav/comments/files/4242"):
+            return multistatus([
+                ("/remote.php/dav/comments/files/4242", ""),
+                ("/remote.php/dav/comments/files/4242/10207",
+                 "<oc:id>10207</oc:id><oc:message>hello</oc:message>"),
+            ])
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_comments", {"action": "add", "file_id": "4242", "message": "hello"})
+    assert res["ok"] and res["added"] and res["verified"] and res["comment_id"] == "10207"
+    assert posted["content_type"].startswith("application/json")
+    assert json.loads(posted["body"]) == {"actorType": "users", "message": "hello", "verb": "comment"}
+    assert all(b"propertyupdate" not in r.content for r in nc.requests)
+
+
+def test_comments_add_server_error_returns_err_json(nc, call):
+    def h(req):
+        if req.method == "POST" and "/comments/files/4242" in req.url.path:
+            return httpx.Response(415, text="Unsupported Media Type")
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_comments", {"action": "add", "file_id": "4242", "message": "hello"})
+    assert res["ok"] is False and "415" in res["error"]
+
+
+def test_comments_add_readback_mismatch_returns_err(nc, call):
+    def h(req):
+        p = req.url.path
+        if req.method == "POST" and p == "/remote.php/dav/comments/files/4242/":
+            return httpx.Response(
+                201,
+                headers={"Content-Location": "https://nc.example/remote.php/dav/comments/files/4242/10207"},
+            )
+        if req.method == "PROPFIND" and p.startswith("/remote.php/dav/comments/files/4242"):
+            return multistatus([
+                ("/remote.php/dav/comments/files/4242", ""),
+                ("/remote.php/dav/comments/files/4242/10207",
+                 "<oc:id>10207</oc:id><oc:message>something else</oc:message>"),
+            ])
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_comments", {"action": "add", "file_id": "4242", "message": "hello"})
+    assert res["ok"] is False and "verification failed" in res["error"]
 
 
 def test_activity_and_notifications(nc, call):
