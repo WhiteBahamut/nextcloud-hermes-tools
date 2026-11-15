@@ -228,6 +228,18 @@ def test_cal_edit_reminder_zero_removes_valarm(nc, call):
     assert "BEGIN:VALARM" not in state[f"{CAL}/{uid}.ics"]
 
 
+def test_cal_edit_reminder_empty_string_removes_valarm(nc, call):
+    # B4 tripwire: the host never injects schema defaults — an explicitly sent
+    # reminder="" must clear the VALARM (like 0), not act as an omitted key
+    uid = "uid-rem"
+    state = {}
+    _edit_handler(nc, state, ALARM_ICS, uid)
+    res = call("nc_cal_edit", {"calendar": "personal", "uid": uid, "reminder": ""})
+    assert res["ok"] and res["verified"]
+    body = state[f"{CAL}/{uid}.ics"]
+    assert "BEGIN:VALARM" not in body  # PUT body and read-back (same body) have no VALARM
+
+
 def test_cal_edit_preserves_valarm_on_other_edits(nc, call):
     uid = "uid-rem"
     state = {}

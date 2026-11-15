@@ -72,6 +72,10 @@ surrounding style by hand. Every module MUST start with
   DELETE source; HTML-escaped etags must be unescaped before `If-Match`.
 - Retry at most once (0.5 s backoff), only for `client.RETRY_SAFE_METHODS`
   (GET/HEAD/OPTIONS/PROPFIND/REPORT), only on connect/read/protocol errors.
+- The Hermes host passes tool args verbatim and NEVER injects schema `default`s (verified
+  against /opt/hermes tools/arg_coercion.py::coerce_tool_args). Handlers MUST distinguish
+  omitted keys via `"key" in args` from explicitly-sent empty values; never rely on schema
+  defaults being present.
 - Writes and destructive ops are gated by the `pre_tool_call` hook
   (`hard_block_destructive: true` hard-blocks destructive ops). Classify every new tool in
   `src/guardrails.py`.

@@ -221,6 +221,24 @@ def test_note_edit_content_uses_put_notes_id_route(nc, call):
     assert not any("/content" in r.url.path for r in nc.requests)  # no nonexistent /content route
 
 
+def test_note_edit_explicit_empty_content_clears(nc, call):
+    # B4 tripwire: explicit content="" must be sent as an empty value (clear the
+    # note), not treated as an omitted key
+    def h(req):
+        p = req.url.path
+        if p == f"{NOTES_API}/7" and req.method == "PUT":
+            return httpx.Response(200, json={"id": 7, "title": "T", "content": ""})
+        if p == f"{NOTES_API}/7" and req.method == "GET":
+            return httpx.Response(200, json={"id": 7, "title": "T", "content": ""})
+        return httpx.Response(998, text="x")
+
+    nc.handler = h
+    res = call("nc_note_edit", {"id": "7", "content": ""})
+    assert res["ok"] and res["verified"]
+    puts = nc.find("PUT", NOTES_API)
+    assert len(puts) == 1 and b"content=" in puts[0].content  # sent as empty form field
+
+
 def test_note_edit_dav_fallback_numeric_id_creates_no_sidecar(nc, call):
     def h(req):
         p = req.url.path
