@@ -65,21 +65,21 @@ _SUMMARIES = {
     "nc_file_move": "move '{source}' to '{destination}'",
     "nc_file_delete": "delete '{path}' (moves to trashbin)",
     "nc_share_create": "share '{path}' with '{share_with}' (type {share_type}, permissions {permissions})",
-    "nc_share_delete": "delete share {id}",
+    "nc_share_delete": "delete share with id {id}",
     "nc_talk_send": "send message to room {token}: '{message}'",
-    "nc_talk_delete": "delete message {message_id} in room {token}",
-    "nc_talk_react": "{react} reaction '{emoji}' on message {message_id} in room {token}",
+    "nc_talk_delete": "delete message id {message_id} in room {token}",
+    "nc_talk_react": "{react} reaction '{emoji}' on message id {message_id} in room {token}",
     "nc_cal_create": "create event '{summary}' in calendar '{calendar}' ({start} to {end})",
-    "nc_cal_edit": "edit event '{uid}' in calendar '{calendar}'",
-    "nc_cal_delete": "delete event '{uid}' in calendar '{calendar}'",
+    "nc_cal_edit": "edit event with uid '{uid}' in calendar '{calendar}'",
+    "nc_cal_delete": "delete event with uid '{uid}' in calendar '{calendar}'",
     "nc_task_create": "create task '{summary}' in list '{calendar}'",
-    "nc_task_complete": "mark task '{uid}' in '{calendar}' completed",
-    "nc_task_reopen": "reopen task '{uid}' in '{calendar}'",
+    "nc_task_complete": "mark task with uid '{uid}' in '{calendar}' completed",
+    "nc_task_reopen": "reopen task with uid '{uid}' in '{calendar}'",
     "nc_contact_create": "create contact '{fn}' in address book '{book}'",
-    "nc_contact_edit": "edit contact '{uid}' in address book '{book}'",
+    "nc_contact_edit": "edit contact with uid '{uid}' in address book '{book}'",
     "nc_note_create": "create note '{title}'",
-    "nc_note_edit": "edit note '{id}'",
-    "nc_note_delete": "delete note '{id}'",
+    "nc_note_edit": "edit note with id '{id}'",
+    "nc_note_delete": "delete note with id '{id}'",
     "nc_tag_assign": "assign tag '{tag}' to '{path}'",
     "nc_tag_unassign": "remove tag '{tag}' from '{path}'",
     "nc_trash_restore": "restore trashbin entry '{trash_path}' to its original location",
@@ -92,7 +92,7 @@ _SUMMARIES = {
 _ACTION_SUMMARIES = {
     "nc_comments": {
         "add": "add comment '{message}' on file {file_target}",
-        "delete": "delete comment {comment_id} on file {file_target}",
+        "delete": "delete comment id {comment_id} on file {file_target}",
     },
     "nc_ocs": {
         "*": "{method} /ocs/v2.php/{path}",
@@ -138,6 +138,10 @@ def _describe(name: str, args) -> str:
         extra["method"] = method
     elif name == "nc_talk_react":
         extra["react"] = "add" if a.get("react", True) else "remove"
+    elif name == "nc_note_edit" and str(a.get("title") or ""):
+        template = "edit note '{title}' (id {id})"
+    elif name == "nc_contact_edit" and str(a.get("fn") or ""):
+        template = "edit contact '{fn}' (uid {uid}) in address book '{book}'"
     if template is None:
         return f"{name} {_brief(a)}"
     values = {k: _trunc(v) for k, v in a.items()}

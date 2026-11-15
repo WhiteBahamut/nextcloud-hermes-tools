@@ -32,7 +32,7 @@ def test_guard_matrix():
     assert g("nc_ocs", {"method": "POST", "path": "x"})["action"] == "approve"
     d2 = g("nc_cal_delete", {"calendar": "personal", "uid": "8f6cf60a-x"})
     assert d2["rule_key"] == "nc-destructive"
-    assert d2["message"] == "Destructive Nextcloud op — delete event '8f6cf60a-x' in calendar 'personal' (nc_cal_delete)"
+    assert d2["message"] == "Destructive Nextcloud op — delete event with uid '8f6cf60a-x' in calendar 'personal' (nc_cal_delete)"
     c = g("nc_cal_create", {"summary": "Standup", "start": "2026-11-16T09:00:00Z", "end": "2026-11-16T09:30:00Z"})
     assert "create event 'Standup' in calendar 'personal'" in c["message"]  # schema default applied
 
@@ -89,11 +89,38 @@ def test_guard_summary_arg_dispatch():
     assert "on file /Docs/a.txt" in add_path["message"]  # path used when file_id absent
     dele = g("nc_comments", {"action": "delete", "file_id": "1", "comment_id": 2})
     assert dele["rule_key"] == "nc-destructive"
-    assert "delete comment 2 on file 1 (nc_comments)" in dele["message"]
+    assert "delete comment id 2 on file 1 (nc_comments)" in dele["message"]
     post = g("nc_ocs", {"method": "POST", "path": "x"})
     assert "POST /ocs/v2.php/x (nc_ocs)" in post["message"]
     react = g("nc_talk_react", {"token": "t", "message_id": 5, "emoji": "👍", "react": False})
-    assert "remove reaction '👍' on message 5 in room t (nc_talk_react)" in react["message"]
+    assert "remove reaction '👍' on message id 5 in room t (nc_talk_react)" in react["message"]
+
+
+def test_guard_readable_targets_from_args():
+    g = guardrails.guard
+    d = g("nc_note_delete", {"id": "195531"})
+    assert d["message"] == "Destructive Nextcloud op — delete note with id '195531' (nc_note_delete)"
+    e = g("nc_note_edit", {"id": "195531", "title": "Shopping list"})
+    assert "edit note 'Shopping list' (id 195531)" in e["message"]
+    e2 = g("nc_note_edit", {"id": "195531"})
+    assert "edit note with id '195531'" in e2["message"]
+    c = g("nc_contact_edit", {"uid": "u1", "fn": "Alice"})
+    assert "edit contact 'Alice' (uid u1) in address book 'contacts'" in c["message"]
+    c2 = g("nc_contact_edit", {"uid": "u1"})
+    assert "edit contact with uid 'u1' in address book 'contacts'" in c2["message"]
+
+
+def test_guard_makes_zero_network_requests(nc):
+    args = {"path": "/p", "source": "/s", "destination": "/d", "token": "t", "trash_path": "/tr",
+            "uid": "u", "id": "7", "share_with": "bob", "share_type": 0, "permissions": 1,
+            "message": "m", "message_id": 3, "emoji": "👍", "calendar": "cal", "summary": "s",
+            "start": "st", "end": "en", "book": "b", "fn": "f", "title": "ti", "tag": "tg"}
+    for name in sorted(guardrails.WRITES | guardrails.DESTRUCTIVE):
+        guardrails.guard(name, args)
+    guardrails.guard("nc_comments", {"action": "add", "file_id": "1", "message": "m"})
+    guardrails.guard("nc_comments", {"action": "delete", "file_id": "1", "comment_id": 2})
+    guardrails.guard("nc_ocs", {"method": "POST", "path": "x"})
+    assert nc.requests == []
 
 
 def test_guard_message_redacts_secrets(monkeypatch):
