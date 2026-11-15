@@ -1,8 +1,9 @@
 from datetime import datetime
+import re
 
 import httpx
-from conftest import multistatus
-from nextcloud_tools import ical
+from conftest import MockNc, make_caller, multistatus
+from nextcloud_tools import client, ical, tools_cal
 
 CAL = "/remote.php/dav/calendars/bot/personal"
 TASKS = "/remote.php/dav/calendars/bot/tasks"
@@ -552,3 +553,178 @@ def test_task_404_lists_available_calendars(nc, call):
     res = call("nc_task_complete", {"calendar": "tasks", "uid": "x"})
     assert res["ok"] is False and "no VTODO with UID x" in res["error"]
     assert "available calendars" not in res["error"]
+
+
+# --- pass-through times + server_timezone defaults ----------------------------------
+
+
+def _nc_with_settings(monkeypatch, settings):
+    monkeypatch.setenv("TALK_SERVER_URL", "https://nc.example")
+    monkeypatch.setenv("TALK_USER", "bot")
+    monkeypatch.setenv("TALK_APP_PASSWORD", "s3cret-pw")
+    monkeypatch.setattr(tools_cal, "_DETECTED_TZ", None)  # reset detection cache per test
+    _ctx, call = make_caller(settings)
+    mock = MockNc()
+    http = httpx.Client(base_url="https://nc.example", transport=httpx.MockTransport(mock),
+                        headers={"OCS-APIRequest": "true", "Accept": "application/json"})
+    monkeypatch.setattr(client, "get_client", lambda: http)
+    return mock, call
+
+
+def _put_get_state_handler(state):
+    def h(req):
+        p = req.url.path
+        if req.method == "PUT":
+            state[p] = req.content.decode()
+            return httpx.Response(201)
+        if req.method == "GET":
+            return httpx.Response(200, text=state[p]) if p in state else httpx.Response(404, text="nf")
+        return httpx.Response(404, text="nf")
+    return h
+
+
+def test_cal_create_passes_times_through(nc, call):
+    state = {}
+    nc.handler = _put_get_state_handler(state)
+    cases = [
+        ("2026-11-10T14:00:00Z", "2026-11-10T15:00:00Z", "DTSTART:20261110T140000Z"),
+        ("2026-11-10T14:00:00+02:00", "2026-11-10T15:00:00+02:00", "DTSTART:20261110T140000"),
+        ("2026-11-10T14:00:00", "2026-11-10T15:00:00", "DTSTART:20261110T140000"),
+    ]
+    for start, end, expected in cases:
+        res = call("nc_cal_create", {"calendar": "personal", "summary": "T", "start": start, "end": end})
+        assert res["ok"] and res["verified"], res
+        body = state[f"{CAL}/{res['uid']}.ics"]
+        assert expected in body, (start, body)
+    # the +02:00 wall time must NOT have been converted to UTC
+    bodies = list(state.values())
+    assert not any("DTSTART:20261110T120000Z" in b for b in bodies)
+
+
+def test_task_create_due_passthrough(nc, call):
+    state = {}
+    nc.handler = _put_get_state_handler(state)
+    res = call("nc_task_create", {"calendar": "tasks", "summary": "A", "due": "2026-11-20T18:00:00+02:00"})
+    assert res["ok"] and res["verified"], res
+    body = state[f"{TASKS}/{res['uid']}.ics"]
+    assert "DUE:20261120T180000" in body  # wall time kept, not converted to 170000Z
+    assert "DUE:20261120T170000Z" not in body
+    res = call("nc_task_create", {"calendar": "tasks", "summary": "B", "due": "2026-11-20"})
+    assert res["ok"] and res["verified"], res
+    body = state[f"{TASKS}/{res['uid']}.ics"]
+    assert "DUE;VALUE=DATE:20261120" in body
+
+
+def test_cal_list_defaults_use_config_timezone(monkeypatch):
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+    mock, call = _nc_with_settings(monkeypatch, {"server_timezone": "Europe/Berlin"})
+
+    def h(req):
+        assert req.method == "REPORT", f"unexpected {req.method} (detection must not fire)"
+        return multistatus([])
+
+    mock.handler = h
+    res = call("nc_cal_list", {"calendar": "personal"})
+    assert res["ok"], res
+    berlin = ZoneInfo("Europe/Berlin")
+    now_b = datetime.now(berlin)
+    assert datetime.fromisoformat(res["from"]).utcoffset() == (now_b - timedelta(days=30)).utcoffset(), res["from"]
+    assert datetime.fromisoformat(res["to"]).utcoffset() == (now_b + timedelta(days=90)).utcoffset(), res["to"]
+    body = mock.find("REPORT", "calendars")[0].content.decode()
+    m = re.search(r'start="(\d{8}T\d{6})(Z?)"', body)
+    assert m and m.group(2) == ""  # floating Berlin wall time, no Z
+    assert mock.find("PROPFIND", "calendars") == []
+
+
+def test_cal_list_defaults_detect_server_tz(monkeypatch):
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+    mock, call = _nc_with_settings(monkeypatch, None)
+    tz_xml = "<cal:calendar-timezone>BEGIN:VTIMEZONE\r\nTZID:Europe/Berlin\r\nEND:VTIMEZONE</cal:calendar-timezone>"
+
+    def h(req):
+        if req.method == "PROPFIND":
+            return multistatus([("/remote.php/dav/calendars/bot/", tz_xml)])
+        assert req.method == "REPORT"
+        return multistatus([])
+
+    mock.handler = h
+    berlin = ZoneInfo("Europe/Berlin")
+    now_b = datetime.now(berlin)
+    for _ in range(2):
+        res = call("nc_cal_list", {"calendar": "personal"})
+        assert res["ok"], res
+        assert datetime.fromisoformat(res["from"]).utcoffset() == (now_b - timedelta(days=30)).utcoffset(), res["from"]
+    assert len(mock.find("PROPFIND", "calendars")) == 1  # detection cached per process
+
+
+def test_cal_list_defaults_utc_fallback_when_undetectable(monkeypatch):
+    mock, call = _nc_with_settings(monkeypatch, None)
+
+    def h(req):
+        if req.method == "PROPFIND":
+            return httpx.Response(404, text="nf")
+        assert req.method == "REPORT"
+        return multistatus([])
+
+    mock.handler = h
+    res = call("nc_cal_list", {"calendar": "personal"})
+    assert res["ok"], res
+    assert res["from"].endswith("+00:00"), res["from"]
+    body = mock.find("REPORT", "calendars")[0].content.decode()
+    assert re.search(r'start="\d{8}T\d{6}Z"', body)  # UTC fallback -> Z suffix
+
+
+def test_cal_list_defaults_invalid_setting_utc(monkeypatch):
+    mock, call = _nc_with_settings(monkeypatch, {"server_timezone": "Not/AZone"})
+
+    def h(req):
+        assert req.method == "REPORT", f"unexpected {req.method} (invalid setting -> no detection)"
+        return multistatus([])
+
+    mock.handler = h
+    res = call("nc_cal_list", {"calendar": "personal"})
+    assert res["ok"], res
+    assert res["from"].endswith("+00:00"), res["from"]
+    assert mock.find("PROPFIND", "calendars") == []
+
+
+def test_cal_list_explicit_args_pass_through(monkeypatch):
+    mock, call = _nc_with_settings(monkeypatch, {"server_timezone": "Europe/Berlin"})
+
+    def h(req):
+        assert req.method == "REPORT", f"unexpected {req.method} (setting set -> no detection)"
+        return multistatus([])
+
+    mock.handler = h
+    res = call("nc_cal_list", {"calendar": "personal", "from": "2026-11-01T00:00:00+02:00"})
+    assert res["ok"], res
+    assert res["from"] == "2026-11-01T00:00:00+02:00"  # echoed exactly as given
+    body = mock.find("REPORT", "calendars")[0].content.decode()
+    assert 'start="20261101T000000"' in body  # wall time kept, no Z, no conversion to 20261030T220000Z
+    assert mock.find("PROPFIND", "calendars") == []
+
+
+def test_cal_list_defaults_detect_server_tz_nested_vtimezone(monkeypatch):
+    # RFC 4791 §5.2.2 shape: calendar-timezone contains a nested VTIMEZONE component
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+    mock, call = _nc_with_settings(monkeypatch, None)
+    tz_xml = (
+        "<cal:calendar-timezone><VTIMEZONE>"
+        "<BEGIN>VTIMEZONE</BEGIN><TZID>Europe/Berlin</TZID>"
+        "<END>VTIMEZONE</END></VTIMEZONE></cal:calendar-timezone>"
+    )
+
+    def h(req):
+        if req.method == "PROPFIND":
+            return multistatus([("/remote.php/dav/calendars/bot/", tz_xml)])
+        assert req.method == "REPORT"
+        return multistatus([])
+
+    mock.handler = h
+    res = call("nc_cal_list", {"calendar": "personal"})
+    assert res["ok"], res
+    now_b = datetime.now(ZoneInfo("Europe/Berlin"))
+    assert datetime.fromisoformat(res["from"]).utcoffset() == (now_b - timedelta(days=30)).utcoffset(), res["from"]

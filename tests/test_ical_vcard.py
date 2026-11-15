@@ -86,3 +86,11 @@ def test_vcard_build_has_required_fn_and_uid():
     card = vcard.parse_vcard(text)
     assert card["fn"] == "X" and card["uid"]  # uuid4 generated
     assert "VERSION:4.0" in text
+
+
+def test_fmt_dt_passthrough_no_conversion():
+    from datetime import timedelta, timezone as tz
+    assert ical.fmt_dt(datetime(2026, 11, 10, 14, tzinfo=tz.utc))[0] == "20261110T140000Z"
+    plus2 = datetime(2026, 11, 10, 14, tzinfo=tz(timedelta(hours=2)))
+    assert ical.fmt_dt(plus2)[0] == "20261110T140000"  # wall time kept, no conversion to 120000Z
+    assert ical.fmt_dt(datetime(2026, 11, 10, 14))[0] == "20261110T140000"

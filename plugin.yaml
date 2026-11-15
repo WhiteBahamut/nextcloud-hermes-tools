@@ -1,5 +1,5 @@
 name: nextcloud-tools
-version: 0.10.0
+version: 0.11.0
 description: >-
   Nextcloud toolset for Hermes Agent: 44 tools against one Nextcloud server -
   files (WebDAV), unified/full-text search, shares, Talk, calendar, tasks,
@@ -96,6 +96,10 @@ config_schema:
     type: float
     default: 30.0
     description: HTTP request timeout in seconds.
+  server_timezone:
+    type: str
+    default: ""
+    description: Timezone for tool-generated default times only (nc_cal_list default from/to = now-30d/now+90d in this zone). Empty (default) = server timezone, auto-detected via CalDAV calendar-timezone (UTC fallback). Invalid names fall back to UTC. Times passed in tool arguments are used exactly as given — never converted.
   talk_include_dms:
     type: bool
     default: false

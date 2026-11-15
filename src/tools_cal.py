@@ -15,8 +15,10 @@ from __future__ import annotations
 
 import html
 import re
+import xml.etree.ElementTree as ET
 import uuid
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from urllib.parse import unquote
 from xml.sax.saxutils import escape as xml_escape
 
@@ -77,19 +79,78 @@ def _comp_query_body(comp="VTODO"):
     )
 
 
+_DETECTED_TZ = None  # process-wide cache of the auto-detected server timezone
+
+
+def _detect_server_tz():
+    """Auto-detect the server timezone: PROPFIND Depth:0 on the calendar home
+    (``client.cal_home()`` -> /remote.php/dav/calendars/<user>/) requesting
+    {urn:ietf:params:xml:ns:caldav}calendar-timezone, then ZoneInfo(TZID).
+    Any absence/error/invalid TZID -> UTC. Never raises."""
+    try:
+        body = (
+            '<?xml version="1.0" encoding="utf-8"?>'
+            '<d:propfind xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">'
+            "<d:prop><cal:calendar-timezone/></d:prop></d:propfind>"
+        )
+        resp = client.request("PROPFIND", client.cal_home(), content=body,
+                              headers={"Depth": "0", "Content-Type": "application/xml; charset=utf-8"})
+        if resp.status_code in (200, 207):
+            for r in parse_multistatus(resp.text):
+                v = r["props"].get("calendar-timezone")
+                if v:
+                    m = re.search(r"TZID:([^\r\n]+)", v)
+                    if m:
+                        return ZoneInfo(m.group(1).strip())
+            # RFC 4791 §5.2.2 serializes calendar-timezone as a nested VTIMEZONE
+            # component; parse_multistatus keeps only direct text, so scan the raw
+            # XML too (nested <TZID> element, or flat "TZID:..." itertext).
+            try:
+                for el in ET.fromstring(resp.text).iter():
+                    if el.tag.rsplit("}", 1)[-1] != "calendar-timezone":
+                        continue
+                    for sub in el.iter():
+                        if sub.tag.rsplit("}", 1)[-1].lower() == "tzid" and sub.text and sub.text.strip():
+                            return ZoneInfo(sub.text.strip())
+                    m = re.search(r"TZID:([^\r\n]+)", "".join(el.itertext()))
+                    if m:
+                        return ZoneInfo(m.group(1).strip())
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return timezone.utc
+
+
+def _server_tz():
+    """Effective zone for tool-generated default times: non-empty server_timezone
+    wins (invalid name -> UTC); empty -> auto-detected server timezone (cached)."""
+    name = str(client.get_config("server_timezone", "") or "").strip()
+    if name:
+        try:
+            return ZoneInfo(name)
+        except Exception:
+            return timezone.utc
+    global _DETECTED_TZ
+    if _DETECTED_TZ is None:
+        _DETECTED_TZ = _detect_server_tz()
+    return _DETECTED_TZ
+
+
 def _range_bounds(args):
-    now = datetime.now(timezone.utc)
-    frm = ical.parse_iso(args.get("from") or "") or (now - timedelta(days=30))
-    to = ical.parse_iso(args.get("to") or "") or (now + timedelta(days=90))
-    if frm.tzinfo is None:
-        frm = frm.replace(tzinfo=timezone.utc)
-    if to.tzinfo is None:
-        to = to.replace(tzinfo=timezone.utc)
-    return frm.astimezone(timezone.utc), to.astimezone(timezone.utc)
+    frm = ical.parse_iso(args.get("from") or "")
+    to = ical.parse_iso(args.get("to") or "")
+    if frm is None or to is None:
+        now = datetime.now(_server_tz())  # detection fires only when a bound is missing
+        if frm is None:
+            frm = now - timedelta(days=30)
+        if to is None:
+            to = now + timedelta(days=90)
+    return frm, to
 
 
 def _ics(dt) -> str:
-    return dt.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return ical.fmt_dt(dt)[0]
 
 
 def _parse_duration(v: str) -> timedelta:

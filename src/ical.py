@@ -128,21 +128,22 @@ def parse_iso(s: str) -> datetime | None:
 
 
 def fmt_dt(dt, all_day: bool = False):
-    """datetime -> (ics_value, is_date). UTC datetimes get the 'Z' suffix."""
+    """datetime -> (ics_value, is_date). UTC-aware datetimes keep the 'Z' suffix; any other value is stored as floating wall time exactly as given (no zone conversion)."""
     if all_day:
         d = dt.date() if isinstance(dt, datetime) else dt
         return d.strftime("%Y%m%d"), True
     if isinstance(dt, date) and not isinstance(dt, datetime):
         return dt.strftime("%Y%m%dT000000"), False
     if dt.tzinfo is not None:
-        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-        return dt.strftime("%Y%m%dT%H%M%SZ"), False
+        if dt.utcoffset() == timedelta(0):
+            return dt.strftime("%Y%m%dT%H%M%SZ"), False
+        return dt.replace(tzinfo=None).strftime("%Y%m%dT%H%M%S"), False
     return dt.strftime("%Y%m%dT%H%M%S"), False
 
 
 def _naive(dt):
     if isinstance(dt, datetime) and dt.tzinfo is not None:
-        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+        return dt.replace(tzinfo=None)
     return dt
 
 

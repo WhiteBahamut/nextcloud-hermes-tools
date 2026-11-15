@@ -123,6 +123,7 @@ def settings() -> dict:
         "default_search_providers": [str(p) for p in (providers or DEFAULT_SEARCH_PROVIDERS)],
         "max_results": int(get_config("max_results", 20) or 20),
         "request_timeout": float(get_config("request_timeout", 30.0) or 30.0),
+        "server_timezone": str(get_config("server_timezone", "") or ""),
         "talk_include_dms": bool(get_config("talk_include_dms", False)),
         "talk_skip_tokens": [str(t) for t in skip],
         "disabled_tools": [str(t) for t in disabled],

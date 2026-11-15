@@ -160,11 +160,11 @@ NC_TALK_REACT = _s(
 # --- calendar + tasks ----------------------------------------------------------
 
 NC_CAL_LIST = _s(
-    "List calendar events in a time range (CalDAV REPORT time-range; recurring events expanded client-side, capped at 500 occurrences). Defaults: from = now-30d, to = now+90d.",
+    "List calendar events in a time range (CalDAV REPORT time-range; recurring events expanded client-side, capped at 500 occurrences). Defaults: from = now-30d, to = now+90d. Defaults from/to are computed in the server_timezone setting (empty = server timezone, UTC fallback).",
     {
         "calendar": {**CAL, "default": "personal"},
-        "from": {"type": "string", "default": "", "description": "ISO 8601 range start, e.g. 2026-11-01T00:00:00+00:00."},
-        "to": {"type": "string", "default": "", "description": "ISO 8601 range end."},
+        "from": {"type": "string", "default": "", "description": "ISO 8601 range start, e.g. 2026-11-01T00:00:00+00:00. Used exactly as given — no timezone conversion."},
+        "to": {"type": "string", "default": "", "description": "ISO 8601 range end. Used exactly as given — no timezone conversion."},
         "limit": {"type": "integer", "default": 100},
     },
 )
@@ -173,8 +173,8 @@ NC_CAL_CREATE = _s(
     {
         "calendar": {**CAL, "default": "personal"},
         "summary": {"type": "string"},
-        "start": {"type": "string", "description": "ISO 8601 start, or YYYY-MM-DD when all_day."},
-        "end": {"type": "string", "description": "ISO 8601 end, or YYYY-MM-DD when all_day."},
+        "start": {"type": "string", "description": "ISO 8601 start, or YYYY-MM-DD when all_day. Used exactly as given — no timezone conversion."},
+        "end": {"type": "string", "description": "ISO 8601 end, or YYYY-MM-DD when all_day. Used exactly as given — no timezone conversion."},
         "all_day": {"type": "boolean", "default": False},
         "description": {"type": "string", "default": ""},
         "location": {"type": "string", "default": ""},
@@ -189,8 +189,8 @@ NC_CAL_EDIT = _s(
         "calendar": CAL,
         "uid": {"type": "string", "description": "VEVENT UID."},
         "summary": {"type": "string", "default": ""},
-        "start": {"type": "string", "default": ""},
-        "end": {"type": "string", "default": ""},
+        "start": {"type": "string", "default": "", "description": "ISO 8601 start, or YYYY-MM-DD when all_day. Used exactly as given — no timezone conversion."},
+        "end": {"type": "string", "default": "", "description": "ISO 8601 end, or YYYY-MM-DD when all_day. Used exactly as given — no timezone conversion."},
         "all_day": {"type": "boolean", "default": False},
         "description": {"type": "string", "default": ""},
         "location": {"type": "string", "default": ""},
@@ -217,7 +217,7 @@ NC_TASK_CREATE = _s(
     {
         "calendar": {**CAL, "default": "tasks"},
         "summary": {"type": "string"},
-        "due": {"type": "string", "default": "", "description": "ISO 8601 or YYYY-MM-DD; empty = no due date."},
+        "due": {"type": "string", "default": "", "description": "ISO 8601 or YYYY-MM-DD; empty = no due date. Used exactly as given — no timezone conversion."},
         "priority": {"type": "integer", "default": 0, "description": "1 = highest ... 9 = lowest; 0 = none."},
         "description": {"type": "string", "default": ""},
         "status": {"type": "string", "enum": ["NEEDS-ACTION", "IN-PROCESS", "COMPLETED", "CANCELLED"], "default": "NEEDS-ACTION", "description": "Initial STATUS of the new task; default NEEDS-ACTION (open). COMPLETED also sets COMPLETED timestamp and PERCENT-COMPLETE:100."},
