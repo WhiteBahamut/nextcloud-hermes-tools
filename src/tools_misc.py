@@ -254,10 +254,12 @@ def _ocs(args):
         for seg in path.split("/")
     ):
         return client.err(f"traversal rejected: {path!r}")  # never a request
-    if method not in ("GET", "POST"):
-        return client.err(f"method must be GET or POST, got {method!r}")
-    data = client.ocs(method, path, params=args.get("params") or None, data=args.get("data") or None)
-    return client.ok(method=method, path=path, data=data)
+    if method not in ("GET", "POST", "PUT", "DELETE", "PATCH"):
+        return client.err(f"method must be GET, POST, PUT, DELETE or PATCH, got {method!r}")
+    params = args.get("params") or None if method in ("GET", "DELETE") else None
+    form = args.get("data") or None if method in ("POST", "PUT", "PATCH") else None
+    result = client.ocs(method, path, params=params, data=form)
+    return client.ok(method=method, path=path, data=result)
 
 
 TOOLS = [

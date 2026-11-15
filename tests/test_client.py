@@ -108,6 +108,26 @@ def test_nc_ocs_passes_through(nc, call):
     assert nc.requests[0].url.params["limit"] == "5"
 
 
+def test_nc_ocs_put_delete_patch_reach_transport(nc, call):
+    nc.handler = lambda req: ocs_ok({"done": True})
+    for m in ("PUT", "DELETE", "PATCH"):
+        res = call("nc_ocs", {"method": m, "path": "apps/x/thing/1", "params": {"a": "b"}, "data": {"k": "v"}})
+        assert res["ok"] and res["method"] == m, m
+    methods = [r.method for r in nc.requests]
+    assert methods == ["PUT", "DELETE", "PATCH"]
+    put, dele, patch = nc.requests
+    assert "k=v" in put.content.decode() and put.url.params.get("a") is None  # data only on writes
+    assert dele.url.params["a"] == "b" and not dele.content  # params only on GET/DELETE
+    assert "k=v" in patch.content.decode()
+
+
+def test_nc_ocs_traversal_rejected_for_every_method(nc, call):
+    for m in ("GET", "POST", "PUT", "DELETE", "PATCH"):
+        res = call("nc_ocs", {"method": m, "path": "apps/../secret"})
+        assert res["ok"] is False and "traversal" in res["error"], m
+    assert nc.requests == []  # traversal never becomes a request, any method
+
+
 def test_tool_decorator_never_raises(nc, call):
     # default handler 404s -> NcError -> error JSON, not an exception
     res = call("nc_file_get", {"path": "/missing"})

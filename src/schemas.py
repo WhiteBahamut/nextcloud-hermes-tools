@@ -412,10 +412,10 @@ NC_COMMENTS = _s(
 NC_OCS = _s(
     "Generic OCS v2 escape hatch for any unmapped endpoint under /ocs/v2.php/. The path must NOT start with '/' and must NOT contain '..' (traversal is rejected before any request). Talk room management (create/invite/leave/topic) needs a CSRF token from GET /index.php/csrftoken and is not covered by these tools. Large `data` payloads are truncated host-side — prefer narrow endpoints.",
     {
-        "method": {"type": "string", "enum": ["GET", "POST"], "default": "GET", "description": "HTTP method; GET is read-only, POST is a gated write."},
+        "method": {"type": "string", "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"], "default": "GET", "description": "HTTP method; GET is read-only, DELETE is destructive, POST/PUT/PATCH are gated writes."},
         "path": {"type": "string", "description": "OCS path after /ocs/v2.php/, e.g. 'apps/spreed/api/v4/room'."},
-        "params": {"type": "object", "default": {}, "description": "Query parameters (GET)."},
-        "data": {"type": "object", "default": {}, "description": "Form fields (POST)."},
+        "params": {"type": "object", "default": {}, "description": "Query parameters (GET/DELETE)."},
+        "data": {"type": "object", "default": {}, "description": "Form fields (POST/PUT/PATCH)."},
     },
     ["path"],
 )

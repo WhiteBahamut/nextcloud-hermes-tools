@@ -1,7 +1,8 @@
 """``pre_tool_call`` guardrail hook.
 
 Classification via three frozensets (``nc_comments`` dispatches on
-``args["action"]``; ``nc_ocs`` gates POST as a write, GET passes through):
+``args["action"]``; ``nc_ocs`` gates GET as read, DELETE as destructive and other
+non-GET methods as writes):
 
 - READ_ONLY -> ``None`` (normal approval policy applies)
 - WRITES -> ``{"action": "approve", ...}`` — escalates to the human approval gate
@@ -98,6 +99,7 @@ _ACTION_SUMMARIES = {
         "delete": "delete comment id {comment_id} on file {file_target}",
     },
     "nc_ocs": {
+        "DELETE": "DELETE /ocs/v2.php/{path} (destructive)",
         "*": "{method} /ocs/v2.php/{path}",
     },
 }
@@ -196,7 +198,10 @@ def _classify(tool_name: str, args) -> str | None:
             return "read"
         return "destructive" if action == "delete" else "write"
     if tool_name == "nc_ocs":
-        return "read" if str((args or {}).get("method") or "GET").upper() == "GET" else "write"
+        m = str((args or {}).get("method") or "GET").upper()
+        if m == "GET":
+            return "read"
+        return "destructive" if m == "DELETE" else "write"
     return None
 
 
