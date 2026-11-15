@@ -151,6 +151,26 @@ def test_contact_search_local_filter(nc):
     assert [c["uid"] for c in res["contacts"]] == ["c2"]
 
 
+def test_contact_list_books_home_propfind(nc, call):
+    home = "/remote.php/dav/addressbooks/users/bot"
+
+    def h(req):
+        assert req.method == "PROPFIND" and req.url.path == home + "/"
+        assert req.headers["Depth"] == "1"
+        return multistatus([
+            (f"{home}/", '<d:resourcetype><d:collection/></d:resourcetype>'),
+            (f"{home}/contacts", '<d:resourcetype><d:collection/></d:resourcetype><d:displayname>Contacts</d:displayname>'),
+            (f"{home}/work", '<d:resourcetype><d:collection/></d:resourcetype><d:displayname>Work</d:displayname>'),
+        ])
+
+    nc.handler = h
+    res = call("nc_contact_list_books", {})
+    assert res["ok"] and res["count"] == 2
+    assert [r.method for r in nc.requests] == ["PROPFIND"]
+    assert res["books"] == [{"name": "contacts", "display_name": "Contacts"},
+                            {"name": "work", "display_name": "Work"}]
+
+
 # --- notes handlers --------------------------------------------------------------------
 
 

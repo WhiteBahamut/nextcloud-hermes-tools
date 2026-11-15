@@ -5,7 +5,7 @@
 
 A native [Hermes Agent](https://github.com/NousResearch/hermes-agent) **directory plugin** that gives the agent first-class **Nextcloud tools** — files, full-text search, shares, Talk rooms, calendar, tasks, contacts, notes, activity and more — as real tool calls with schemas, instead of shelling out to curl.
 
-All 45 tools live in the `nextcloud` toolset. Every handler returns a JSON string and never raises; every write is verified by read-back; a `pre_tool_call` hook gates writes/destructive ops through the approval system.
+All 47 tools live in the `nextcloud` toolset. Every handler returns a JSON string and never raises; every write is verified by read-back; a `pre_tool_call` hook gates writes/destructive ops through the approval system.
 
 ## Table of Contents
 

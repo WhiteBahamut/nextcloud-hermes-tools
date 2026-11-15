@@ -1,4 +1,4 @@
-"""JSON-Schema definitions for all 45 nextcloud-tools.
+"""JSON-Schema definitions for all 47 nextcloud-tools.
 
 One dict per tool: ``{"description": ..., "parameters": {"type": "object", ...}}``.
 Descriptions teach the model when to call each tool.
@@ -186,6 +186,11 @@ NC_CAL_LIST = _s(
         "limit": {"type": "integer", "default": 100, "description": "Max events returned."},
     },
 )
+
+NC_CAL_LIST_CALENDARS = _s(
+    "List the user's calendars (DAV directory name + display name; PROPFIND Depth 1 on the calendar home). Use `name` as the `calendar` argument of nc_cal_*/nc_task_* tools.",
+    {},
+)
 NC_CAL_CREATE = _s(
     "Create a calendar event (PUT new .ics, verified read-back). Gated. start/end ISO 8601 (or YYYY-MM-DD when all_day); keep one offset style per event (all Z or all ±HH:MM) — times are stored exactly as given, never converted. rrule e.g. 'FREQ=WEEKLY;BYDAY=MO,WE;COUNT=10'. reminder is an optional ISO 8601 duration (e.g. '-PT15M') written as a VALARM TRIGGER relative to start.",
     {
@@ -268,6 +273,11 @@ NC_TASK_REOPEN = _s(
 NC_CONTACT_LIST = _s(
     "List contacts of an address book (CardDAV PROPFIND Depth 1; default book 'contacts').",
     {"book": {**BOOK, "default": "contacts"}, "limit": {"type": "integer", "default": 500, "description": "Max contacts returned."}},
+)
+
+NC_CONTACT_LIST_BOOKS = _s(
+    "List the user's address books (DAV directory name + display name; PROPFIND Depth 1 on the addressbook home). Use `name` as the `book` argument of nc_contact_* tools.",
+    {},
 )
 NC_CONTACT_SEARCH = _s(
     "Search contacts by substring over name/email/phone (case-insensitive local filter on the parsed book).",

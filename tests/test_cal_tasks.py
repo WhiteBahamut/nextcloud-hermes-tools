@@ -102,6 +102,27 @@ def test_cal_list_time_range_report_and_rrule_expansion(nc, call):
     assert event["occurrences"][0]["end"].startswith("2026-11-10T15:00:00")
 
 
+def test_cal_list_calendars_home_propfind(nc, call):
+    home = "/remote.php/dav/calendars/bot"
+
+    def h(req):
+        assert req.method == "PROPFIND" and req.url.path == home + "/"
+        assert req.headers["Depth"] == "1"
+        return multistatus([
+            (f"{home}/", '<d:resourcetype><d:collection/></d:resourcetype><d:displayname>Calendars</d:displayname>'),
+            (f"{home}/personal", '<d:resourcetype><d:collection/></d:resourcetype><d:displayname>Personal</d:displayname>'),
+            (f"{home}/work", '<d:resourcetype><d:collection/></d:resourcetype><d:displayname>Work</d:displayname>'),
+            (f"{home}/stray.ics", '<d:resourcetype/>'),  # non-collection: excluded
+        ])
+
+    nc.handler = h
+    res = call("nc_cal_list_calendars", {})
+    assert res["ok"] and res["count"] == 2
+    assert [r.method for r in nc.requests] == ["PROPFIND"]
+    assert res["calendars"] == [{"name": "personal", "display_name": "Personal"},
+                                {"name": "work", "display_name": "Work"}]  # home excluded, sorted
+
+
 def test_cal_create_all_day_value_date_and_readback(nc, call):
     state = {}
 

@@ -1,7 +1,9 @@
 """Contacts tools — CardDAV under ``/remote.php/dav/addressbooks/users/<user>/<book>/``.
 
 - List via PROPFIND Depth 1 (``card:address-data``), CDATA stripped and lines
-  unfolded before parsing.
+  unfolded before parsing. ``nc_contact_list_books`` lists the addressbook home:
+  PROPFIND Depth 1 on ``/remote.php/dav/addressbooks/users/<user>/`` with
+  ``resourcetype`` + ``displayname``.
 - Search filters locally on the parsed list (fn/email/phone substring,
   case-insensitive).
 - Edits PUT with ``If-Match`` (etag unescaped) and verify by read-back.
@@ -159,8 +161,27 @@ def _edit(args):
     return client.ok(book=book, uid=uid, verified=True)
 
 
+def _book_list(args):
+    """PROPFIND Depth 1 on the addressbook home -> DAV dir name + display name per address book."""
+    home = client.book_home().rstrip("/")
+    resp = client.propfind(
+        client.book_home(),
+        depth=1,
+        body='<d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:displayname/></d:prop></d:propfind>',
+    )
+    books = []
+    for r in parse_multistatus(resp.text):
+        href = r["href"].rstrip("/")
+        if href == home or r["props"].get("resourcetype") is not True:
+            continue
+        books.append({"name": unquote(href).rsplit("/", 1)[-1], "display_name": r["props"].get("displayname") or ""})
+    books.sort(key=lambda b: b["name"])
+    return client.ok(count=len(books), books=books)
+
+
 TOOLS = [
     ("nc_contact_list", schemas.NC_CONTACT_LIST, client.tool(_list)),
+    ("nc_contact_list_books", schemas.NC_CONTACT_LIST_BOOKS, client.tool(_book_list)),
     ("nc_contact_search", schemas.NC_CONTACT_SEARCH, client.tool(_search)),
     ("nc_contact_get", schemas.NC_CONTACT_GET, client.tool(_get)),
     ("nc_contact_create", schemas.NC_CONTACT_CREATE, client.tool(_create)),

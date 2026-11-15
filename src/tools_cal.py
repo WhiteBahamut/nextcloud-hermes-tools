@@ -9,6 +9,8 @@
   from = now-30d, to = now+90d; RRULEs are expanded client-side (cap 500).
 - A 404 from a missing calendar collection is self-healing: the error lists
   the available collections (PROPFIND Depth 1 on the calendar home).
+- ``nc_cal_list_calendars`` lists the calendar home itself: PROPFIND Depth 1 on
+  ``/remote.php/dav/calendars/<user>/`` requesting ``resourcetype`` + ``displayname``.
 """
 
 from __future__ import annotations
@@ -275,6 +277,24 @@ def _missing_calendar_err(calendar):
     return client.err(msg, calendar=calendar, available=available)
 
 
+def _cal_list_calendars(args):
+    """PROPFIND Depth 1 on the calendar home -> DAV dir name + display name per calendar collection."""
+    home = client.cal_home().rstrip("/")
+    resp = client.propfind(
+        client.cal_home(),
+        depth=1,
+        body='<d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:displayname/></d:prop></d:propfind>',
+    )
+    cals = []
+    for r in parse_multistatus(resp.text):
+        href = r["href"].rstrip("/")
+        if href == home or r["props"].get("resourcetype") is not True:
+            continue  # the home itself / non-collections
+        cals.append({"name": unquote(href).rsplit("/", 1)[-1], "display_name": r["props"].get("displayname") or ""})
+    cals.sort(key=lambda c: c["name"])
+    return client.ok(count=len(cals), calendars=cals)
+
+
 def _set_dt(comp, name, dt, all_day):
     if all_day is None:
         p, _ = ical.prop_with_params(comp, name)
@@ -531,6 +551,7 @@ def _task_reopen(args):
 
 TOOLS = [
     ("nc_cal_list", schemas.NC_CAL_LIST, client.tool(_cal_list)),
+    ("nc_cal_list_calendars", schemas.NC_CAL_LIST_CALENDARS, client.tool(_cal_list_calendars)),
     ("nc_cal_create", schemas.NC_CAL_CREATE, client.tool(_cal_create)),
     ("nc_cal_edit", schemas.NC_CAL_EDIT, client.tool(_cal_edit)),
     ("nc_cal_delete", schemas.NC_CAL_DELETE, client.tool(_cal_delete)),

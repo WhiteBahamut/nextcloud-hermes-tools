@@ -189,6 +189,12 @@ def book_dav(book: str) -> str:
     return f"/remote.php/dav/addressbooks/users/{user}/{enc_path(book).strip('/')}/"
 
 
+def book_home() -> str:
+    """DAV href of the user's addressbook home (``/remote.php/dav/addressbooks/users/<user>/``)."""
+    user = quote(_secret("TALK_USER"), safe="")
+    return f"/remote.php/dav/addressbooks/users/{user}/"
+
+
 # --- redaction / results -----------------------------------------------------
 
 
