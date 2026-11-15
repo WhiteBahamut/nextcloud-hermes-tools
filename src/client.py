@@ -241,6 +241,17 @@ def ok(**kw) -> str:
     return json.dumps({"ok": True, **kw}, ensure_ascii=False)
 
 
+def _redact_args(args) -> str:
+    """JSON of args with any 'password'-named value masked, then redact() — never logs share passwords."""
+    def mask(obj):
+        if isinstance(obj, dict):
+            return {k: ("***" if str(k).lower() == "password" else mask(v)) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [mask(v) for v in obj]
+        return obj
+    return redact(json.dumps(mask(args or {})))
+
+
 def tool(fn):
     """Wrap a handler: never raises, always returns a JSON string.
 
@@ -256,7 +267,7 @@ def tool(fn):
         start = time.monotonic()
         if log.isEnabledFor(logging.DEBUG):
             try:
-                log.debug("%s args=%s", wrapper.__name__, redact(json.dumps(args or {}))[:300])
+                log.debug("%s args=%s", wrapper.__name__, _redact_args(args)[:300])
             except Exception:
                 log.debug("%s args=<unloggable>", wrapper.__name__)
         try:

@@ -73,6 +73,14 @@ def test_log_records_never_contain_the_app_password(nc, call, caplog):
         assert "s3cret-pw" not in r.getMessage()
 
 
+def test_log_records_never_contain_a_password_arg(nc, call, caplog):
+    nc.handler = lambda req: ocs_ok({"id": 5}) if req.method != "GET" else ocs_ok({"id": 5})
+    with caplog.at_level(logging.DEBUG, logger=PKG_LOGGER):
+        call("nc_share_edit", {"id": 5, "password": "LinkPw-123"})
+    assert "LinkPw-123" not in caplog.text
+    assert any("password" in r.getMessage() and "***" in r.getMessage() for r in caplog.records)
+
+
 def test_request_retry_logs_exactly_one_warning(nc, monkeypatch, caplog):
     monkeypatch.setattr(client.time, "sleep", lambda _s: None)
     calls = {"n": 0}
@@ -138,9 +146,9 @@ def test_register_logs_tool_count_and_applies_info_level(caplog):
     with caplog.at_level(logging.DEBUG, logger=PKG_LOGGER):
         ctx, _ = conftest.make_caller({"log_level": "INFO"})
         assert logging.getLogger(PKG_LOGGER).level == logging.INFO
-    assert len(ctx.tools) == 47
+    assert len(ctx.tools) == 48
     assert any(
-        r.levelno == logging.INFO and "registered 47 tools" in r.getMessage() and "0 disabled" in r.getMessage()
+        r.levelno == logging.INFO and "registered 48 tools" in r.getMessage() and "0 disabled" in r.getMessage()
         for r in caplog.records
     )
 

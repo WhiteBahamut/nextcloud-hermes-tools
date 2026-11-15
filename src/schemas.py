@@ -1,4 +1,4 @@
-"""JSON-Schema definitions for all 47 nextcloud-tools.
+"""JSON-Schema definitions for all 48 nextcloud-tools.
 
 One dict per tool: ``{"description": ..., "parameters": {"type": "object", ...}}``.
 Descriptions teach the model when to call each tool.
@@ -128,6 +128,18 @@ NC_SHARE_CREATE = _s(
 NC_SHARE_DELETE = _s(
     "Delete a share by id. DESTRUCTIVE — gated; verified 404 afterwards.",
     {"id": {"type": "integer", "description": "Share id (from nc_share_list)."}},
+    ["id"],
+)
+
+NC_SHARE_EDIT = _s(
+    "Edit an existing share (PUT /ocs/v2.php/apps/files_sharing/api/v1/shares/{id}, form-encoded; only provided fields are changed). For public links (shareType 3) password/expire_date apply. Verified by read-back GET. Gated.",
+    {
+        "id": {"type": "integer", "description": "Share id (from nc_share_list)."},
+        "permissions": {"type": "integer", "description": "Permission bitmask; 1 = read-only, 31 = all."},
+        "password": {"type": "string", "description": "Link password (public links); '' clears."},
+        "expire_date": {"type": "string", "description": "Expiry YYYY-MM-DD (public links); '' clears."},
+        "note": {"type": "string", "description": "Share note; '' clears."},
+    },
     ["id"],
 )
 

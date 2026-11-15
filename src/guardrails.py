@@ -36,7 +36,7 @@ READ_ONLY = frozenset({
 })
 
 WRITES = frozenset({
-    "nc_file_put", "nc_file_mkdir", "nc_file_move", "nc_file_copy", "nc_share_create",
+    "nc_file_put", "nc_file_mkdir", "nc_file_move", "nc_file_copy", "nc_share_create", "nc_share_edit",
     "nc_talk_send", "nc_talk_react", "nc_cal_create", "nc_cal_edit",
     "nc_task_create", "nc_task_complete", "nc_task_reopen", "nc_contact_create", "nc_contact_edit",
     "nc_note_create", "nc_note_edit", "nc_tag_assign", "nc_tag_unassign",
@@ -67,6 +67,7 @@ _SUMMARIES = {
     "nc_file_copy": "copy '{source}' to '{destination}'",
     "nc_file_delete": "delete '{path}' (moves to trashbin)",
     "nc_share_create": "share '{path}' with '{share_with}' (type {share_type}, permissions {permissions})",
+    "nc_share_edit": "edit share {id} ({fields})",
     "nc_share_delete": "delete share with id {id}",
     "nc_talk_send": "send message to room {token}: '{message}'",
     "nc_talk_delete": "delete message id {message_id} in room {token}",
@@ -151,6 +152,13 @@ def _describe(name: str, args) -> str:
         extra["size"] = size
         if size == 0 and a.get("allow_empty"):
             template = "create or overwrite file '{path}' ({size} bytes, empty file)"
+    elif name == "nc_share_edit":
+        fields = []
+        for k in ("permissions", "password", "expire_date", "note"):
+            if k in a:
+                fields.append(f"{k}=***" if k == "password" else f"{k}={a[k]}")
+        extra["fields"] = ", ".join(fields) or "no fields"
+
     elif name == "nc_note_edit" and str(a.get("title") or ""):
         template = "edit note '{title}' (id {id})"
     elif name == "nc_contact_edit" and str(a.get("fn") or ""):
