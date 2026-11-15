@@ -43,7 +43,7 @@ ENV_ALIASES = {
     "TALK_USER": "NC_USER",
     "TALK_APP_PASSWORD": "NC_APP_PASSWORD",
 }
-KNOWN_ENV = tuple(ENV_ALIASES.values()) + REQUIRED_ENV  # NC_* first, for requires_env metadata
+KNOWN_ENV = tuple(ENV_ALIASES.values()) + REQUIRED_ENV  # NC_* + TALK_*; tests use this
 
 DEFAULT_SEARCH_PROVIDERS = ["files", "fulltextsearch", "talk-message", "calendar", "tasks"]
 

@@ -54,7 +54,7 @@ def register(ctx):
                 schema=schema,
                 handler=handler,
                 check_fn=client.configured,
-                requires_env=list(client.KNOWN_ENV),
+                requires_env=list(client.ENV_ALIASES.values()),  # the three NC_* names
                 description=schema["description"],
             )
     ctx.register_hook("pre_tool_call", guardrails.guard)

@@ -36,7 +36,7 @@ surrounding style by hand. Every module MUST start with
 |---|---|
 | `plugin.yaml` | Hermes manifest: `provides_tools` (all 44 `nc_*`), `provides_hooks` (`pre_tool_call`), `config_schema` (settings incl. `disabled_tools`) |
 | `__init__.py` | Root loader; exposes `register` / `TOOLSET` from `src/` |
-| `src/__init__.py` | `register(ctx)`: iterates tool modules, skips `disabled_tools`, registers each tool with `check_fn=client.configured` + `requires_env=list(client.KNOWN_ENV)`; registers `guardrails.guard` as the `pre_tool_call` hook |
+| `src/__init__.py` | `register(ctx)`: iterates tool modules, skips `disabled_tools`, registers each tool with `check_fn=client.configured` + `requires_env` = the three `NC_*` names (`list(client.ENV_ALIASES.values())`; `TALK_*` stays a runtime fallback via `ENV_ALIASES`); registers `guardrails.guard` as the `pre_tool_call` hook |
 | `src/client.py` | HTTP layer: secret resolution, per-call config, `enc_path`, `redact`, `ok`/`err`, the `@tool` wrapper, cached client + retry, DAV helpers, OCS helper, read-back verification |
 | `src/guardrails.py` | `pre_tool_call` hook: READ_ONLY / WRITES / DESTRUCTIVE frozensets + arg-dispatch for `nc_comments` / `nc_ocs`; never raises, fails toward approve |
 | `src/compat.py` | Install-time Hermes/Nextcloud version check vs tested ranges; INFO within range, WARNING outside |

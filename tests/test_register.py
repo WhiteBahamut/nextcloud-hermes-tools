@@ -13,7 +13,7 @@ def test_registers_44_tools_under_nextcloud_toolset(fake_ctx):
         assert t["schema"]["description"], name
         assert callable(t["handler"]), name
         assert t["check_fn"] is client.configured, name
-        assert t["requires_env"] == list(client.KNOWN_ENV), name
+        assert t["requires_env"] == ["NC_SERVER_URL", "NC_USER", "NC_APP_PASSWORD"], name
 
 
 def test_exactly_one_pre_tool_call_hook(fake_ctx):
@@ -26,8 +26,9 @@ def test_manifest_provides_tools_matches_registered(fake_ctx):
     assert len(provided) == 44
     assert provided == set(fake_ctx.tools)
     assert "kind:" not in manifest  # only 5 valid kinds exist; omission = standalone
-    for var in client.KNOWN_ENV:
+    for var in ("NC_SERVER_URL", "NC_USER", "NC_APP_PASSWORD"):
         assert f"- {var}" in manifest
+    assert "- TALK_SERVER_URL" not in manifest  # fallback names stay undeclared
 
 
 def test_configured_gating(monkeypatch):

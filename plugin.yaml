@@ -1,5 +1,5 @@
 name: nextcloud-tools
-version: 0.13.2
+version: 0.13.3
 description: >-
   Nextcloud toolset for Hermes Agent: 44 tools against one Nextcloud server -
   files (WebDAV), unified/full-text search, shares, Talk, calendar, tasks,
@@ -10,12 +10,10 @@ author: WhiteBahamut
 license: MIT
 requires_env:
   # NC_* preferred; TALK_* (Talk platform plugin names) accepted as fallback
+  # by client._secret via ENV_ALIASES — only the NC_* names are declared here
   - NC_SERVER_URL
   - NC_USER
   - NC_APP_PASSWORD
-  - TALK_SERVER_URL
-  - TALK_USER
-  - TALK_APP_PASSWORD
 # httpx is a core Hermes dependency, always present in-host; declared for
 # manifest validation / `hermes pm repair` surfacing only.
 python_dependencies:
