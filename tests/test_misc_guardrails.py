@@ -1,4 +1,5 @@
 import httpx
+import pytest
 import conftest
 from conftest import FakeCtx, multistatus, ocs_ok
 from nextcloud_tools import client, guardrails
@@ -28,6 +29,11 @@ def test_guard_matrix():
     assert g("nc_comments", {"action": "delete", "file_id": "1", "comment_id": 2})["rule_key"] == "nc-destructive"
     assert g("nc_ocs", {"method": "GET", "path": "x"}) is None
     assert g("nc_ocs", {"method": "POST", "path": "x"})["action"] == "approve"
+    d2 = g("nc_cal_delete", {"calendar": "personal", "uid": "8f6cf60a-x"})
+    assert d2["rule_key"] == "nc-destructive"
+    assert d2["message"] == "Destructive Nextcloud op — delete event '8f6cf60a-x' in calendar 'personal' (nc_cal_delete)"
+    c = g("nc_cal_create", {"summary": "Standup", "start": "2026-11-16T09:00:00Z", "end": "2026-11-16T09:30:00Z"})
+    assert "create event 'Standup' in calendar 'personal'" in c["message"]  # schema default applied
 
 
 def test_guard_hard_block_destructive():
@@ -36,6 +42,8 @@ def test_guard_hard_block_destructive():
     try:
         d = guardrails.guard("nc_trash_empty", {})
         assert d["action"] == "block" and d["rule_key"] == "nc-destructive"
+        assert d["message"].startswith("Destructive Nextcloud op hard-blocked (hard_block_destructive) — ")
+        assert "empty the ENTIRE trashbin (nc_trash_empty)" in d["message"]
         assert guardrails.guard("nc_file_put", {"path": "/x"})["action"] == "approve"  # writes unaffected
         assert guardrails.guard("nc_file_list", {}) is None
     finally:
@@ -48,13 +56,51 @@ def test_guard_never_raises_and_fails_toward_gate():
             raise RuntimeError("boom")
 
     res = guardrails.guard("nc_file_put", Boom())
-    assert res is not None and res["action"] == "approve"  # internal error -> approve, not raise
+    assert res is not None and res["action"] == "approve" and res["rule_key"] == "nc-error"  # never raises
     assert guardrails.guard("other_tool", Boom()) is None
 
 
 def test_guard_brief_truncates_long_paths():
     w = guardrails.guard("nc_file_put", {"path": "/" + "x" * 500})
     assert len(w["message"]) < 300
+    assert "…" in w["message"]  # interpolated values truncate at 120 chars
+    assert "x" * 120 not in w["message"]
+
+
+@pytest.mark.parametrize("name", sorted(guardrails.WRITES | guardrails.DESTRUCTIVE))
+def test_guard_summary_covers_every_gated_tool(name):
+    assert name in guardrails._SUMMARIES
+    args = {"path": "/p", "source": "/s", "destination": "/d", "token": "t", "trash_path": "/tr",
+            "uid": "u", "id": "7", "share_with": "bob", "share_type": 0, "permissions": 1,
+            "message": "m", "message_id": 3, "emoji": "👍", "calendar": "cal", "summary": "s",
+            "start": "st", "end": "en", "book": "b", "fn": "f", "title": "ti", "tag": "tg"}
+    res = guardrails.guard(name, args)
+    prefix = "Destructive Nextcloud op — " if name in guardrails.DESTRUCTIVE else "Nextcloud write — "
+    assert res["action"] == "approve"
+    assert res["message"].startswith(prefix) and res["message"].endswith(f"({name})")
+
+
+def test_guard_summary_arg_dispatch():
+    g = guardrails.guard
+    add = g("nc_comments", {"action": "add", "file_id": "1", "message": "m"})
+    assert add["rule_key"] == "nc-write" and "add comment 'm' on file 1 (nc_comments)" in add["message"]
+    add_path = g("nc_comments", {"action": "add", "path": "/Docs/a.txt", "message": "m"})
+    assert "on file /Docs/a.txt" in add_path["message"]  # path used when file_id absent
+    dele = g("nc_comments", {"action": "delete", "file_id": "1", "comment_id": 2})
+    assert dele["rule_key"] == "nc-destructive"
+    assert "delete comment 2 on file 1 (nc_comments)" in dele["message"]
+    post = g("nc_ocs", {"method": "POST", "path": "x"})
+    assert "POST /ocs/v2.php/x (nc_ocs)" in post["message"]
+    react = g("nc_talk_react", {"token": "t", "message_id": 5, "emoji": "👍", "react": False})
+    assert "remove reaction '👍' on message 5 in room t (nc_talk_react)" in react["message"]
+
+
+def test_guard_message_redacts_secrets(monkeypatch):
+    monkeypatch.setenv("TALK_APP_PASSWORD", "SECRET123")
+    w = guardrails.guard("nc_talk_send", {"token": "t", "message": "pw is SECRET123"})
+    assert w["action"] == "approve"
+    assert "SECRET123" not in w["message"]
+    assert "***" in w["message"]
 
 
 # --- misc handlers -----------------------------------------------------------------------

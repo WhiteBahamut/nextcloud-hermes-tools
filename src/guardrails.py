@@ -8,6 +8,12 @@ Classification via three frozensets (``nc_comments`` dispatches on
 - DESTRUCTIVE -> ``approve`` with rule_key ``nc-destructive``, or ``block`` when
   settings ``hard_block_destructive`` is true
 
+Gated calls also carry a plain-English summary of what they do (``_SUMMARIES``
+/``_ACTION_SUMMARIES`` templates rendered by ``_describe``) in the approval
+``message`` — action + target instead of a raw arg value — redacted before
+return so no secret leaks into the prompt.
+
+
 The hook NEVER raises (a raise fails closed and would block every tool): on any
 internal error an ``nc_`` tool is routed to ``approve`` (fail toward the gate),
 anything else returns ``None``. Non-``nc_`` tools always return ``None``.
@@ -51,6 +57,105 @@ def _brief(args) -> str:
             return str(value)[:200]
     return ""
 
+# Plain-English approval summaries, one template per gated tool. Placeholders
+# are schema arg names (src/schemas.py); _describe renders them safely.
+_SUMMARIES = {
+    "nc_file_put": "create or overwrite file '{path}'",
+    "nc_file_mkdir": "create folder '{path}'",
+    "nc_file_move": "move '{source}' to '{destination}'",
+    "nc_file_delete": "delete '{path}' (moves to trashbin)",
+    "nc_share_create": "share '{path}' with '{share_with}' (type {share_type}, permissions {permissions})",
+    "nc_share_delete": "delete share {id}",
+    "nc_talk_send": "send message to room {token}: '{message}'",
+    "nc_talk_delete": "delete message {message_id} in room {token}",
+    "nc_talk_react": "{react} reaction '{emoji}' on message {message_id} in room {token}",
+    "nc_cal_create": "create event '{summary}' in calendar '{calendar}' ({start} to {end})",
+    "nc_cal_edit": "edit event '{uid}' in calendar '{calendar}'",
+    "nc_cal_delete": "delete event '{uid}' in calendar '{calendar}'",
+    "nc_task_create": "create task '{summary}' in list '{calendar}'",
+    "nc_task_complete": "mark task '{uid}' in '{calendar}' completed",
+    "nc_task_reopen": "reopen task '{uid}' in '{calendar}'",
+    "nc_contact_create": "create contact '{fn}' in address book '{book}'",
+    "nc_contact_edit": "edit contact '{uid}' in address book '{book}'",
+    "nc_note_create": "create note '{title}'",
+    "nc_note_edit": "edit note '{id}'",
+    "nc_note_delete": "delete note '{id}'",
+    "nc_tag_assign": "assign tag '{tag}' to '{path}'",
+    "nc_tag_unassign": "remove tag '{tag}' from '{path}'",
+    "nc_trash_restore": "restore trashbin entry '{trash_path}' to its original location",
+    "nc_trash_empty": "empty the ENTIRE trashbin",
+}
+
+# Arg-dispatched tools: template chosen via args["action"] / args["method"],
+# exactly like _classify. nc_ocs "*" is the fallback for any non-GET method;
+# nc_comments' {file_target} is computed in _describe as file_id else path.
+_ACTION_SUMMARIES = {
+    "nc_comments": {
+        "add": "add comment '{message}' on file {file_target}",
+        "delete": "delete comment {comment_id} on file {file_target}",
+    },
+    "nc_ocs": {
+        "*": "{method} /ocs/v2.php/{path}",
+    },
+}
+
+
+# Schema defaults the handlers apply when the arg is omitted, so the summary
+# reflects what the call will actually do (calendar -> personal/tasks, book -> contacts).
+_ARG_DEFAULTS = {
+    "nc_cal_create": {"calendar": "personal"},
+    "nc_task_create": {"calendar": "tasks"},
+    "nc_task_complete": {"calendar": "tasks"},
+    "nc_task_reopen": {"calendar": "tasks"},
+    "nc_contact_create": {"book": "contacts"},
+    "nc_contact_edit": {"book": "contacts"},
+}
+
+
+class _SafeDict(dict):
+    """format_map mapping that renders missing keys as empty strings."""
+
+    def __missing__(self, _key):
+        return ""
+
+
+def _trunc(value, limit: int = 120) -> str:
+    text = str(value)
+    return text[:limit] + "…" if len(text) > limit else text
+
+
+def _describe(name: str, args) -> str:
+    """Plain-English summary of a gated call; unknown tools fall back to '<name> <brief>'."""
+    a = args or {}
+    template = _SUMMARIES.get(name)
+    extra = {}
+    if name == "nc_comments":
+        template = _ACTION_SUMMARIES["nc_comments"].get(str(a.get("action") or "list"))
+        extra["file_target"] = a.get("file_id") or a.get("path") or ""
+    elif name == "nc_ocs":
+        method = str(a.get("method") or "GET").upper()
+        template = _ACTION_SUMMARIES["nc_ocs"].get(method, _ACTION_SUMMARIES["nc_ocs"]["*"])
+        extra["method"] = method
+    elif name == "nc_talk_react":
+        extra["react"] = "add" if a.get("react", True) else "remove"
+    if template is None:
+        return f"{name} {_brief(a)}"
+    values = {k: _trunc(v) for k, v in a.items()}
+    values.update({k: _trunc(v) for k, v in extra.items()})
+    for key, default in _ARG_DEFAULTS.get(name, {}).items():
+        if not values.get(key):
+            values[key] = default
+    return template.format_map(_SafeDict(values))
+
+
+def _gated_message(prefix: str, name: str, summary: str) -> str:
+    """'<prefix> — <summary> (<name>)' capped at 280 chars (summary truncated)."""
+    head, tail = f"{prefix} — ", f" ({name})"
+    budget = 280 - len(head) - len(tail)
+    if len(summary) > budget:
+        summary = summary[: max(budget - 1, 0)] + "…"
+    return f"{head}{summary}{tail}"
+
 
 def _classify(tool_name: str, args) -> str | None:
     """'read' | 'write' | 'destructive' | None (passthrough)."""
@@ -79,23 +184,23 @@ def guard(tool_name="", args=None, **_):
         log.debug("guard %s -> %s", name, cls)
         if cls == "read" or cls is None:
             return None
-        brief = _brief(args)
+        summary = client.redact(_describe(name, args))
         if cls == "destructive":
             if client.settings()["hard_block_destructive"]:
-                log.warning("hard-block destructive %s %s", name, client.redact(brief))
+                log.warning("hard-block destructive %s %s", name, summary)
                 return {
                     "action": "block",
-                    "message": f"Destructive Nextcloud op hard-blocked (hard_block_destructive): {name} {brief}".strip(),
+                    "message": _gated_message("Destructive Nextcloud op hard-blocked (hard_block_destructive)", name, summary),
                     "rule_key": "nc-destructive",
                 }
             return {
                 "action": "approve",
-                "message": f"Destructive Nextcloud op: {name} {brief}".strip(),
+                "message": _gated_message("Destructive Nextcloud op", name, summary),
                 "rule_key": "nc-destructive",
             }
         return {
             "action": "approve",
-            "message": f"Nextcloud write: {name} {brief}".strip(),
+            "message": _gated_message("Nextcloud write", name, summary),
             "rule_key": "nc-write",
         }
     except Exception as exc:
@@ -104,7 +209,7 @@ def guard(tool_name="", args=None, **_):
             if str(tool_name or "").startswith("nc_"):
                 return {
                     "action": "approve",
-                    "message": f"Nextcloud guardrail error, routing {tool_name} to approval: {exc}",
+                    "message": client.redact(f"Nextcloud guardrail error, routing {tool_name} to approval: {exc}"),
                     "rule_key": "nc-error",
                 }
         except Exception:
