@@ -73,13 +73,15 @@ def parse_vcard(text: str) -> dict:
 
 
 def build_vcard(fn, email="", phone="", org="", note="", uid=None) -> str:
-    """Build a vCard 4.0 string (FN required, UID=uuid4)."""
+    """Build a vCard 4.0 string (FN required, UID=uuid4). ``email``/``phone`` accept a str or list[str]; '' / [] emit none."""
     uid = uid or str(uuid.uuid4())
+    emails = [email] if isinstance(email, str) and email else [e for e in (email or []) if e]
+    phones = [phone] if isinstance(phone, str) and phone else [p for p in (phone or []) if p]
     lines = ["BEGIN:VCARD", "VERSION:4.0", f"UID:{uid}", f"FN:{esc(fn)}"]
-    if email:
-        lines.append(f"EMAIL;TYPE=HOME:{esc(email)}")
-    if phone:
-        lines.append(f"TEL;TYPE=CELL:{esc(phone)}")
+    for e in emails:
+        lines.append(f"EMAIL;TYPE=HOME:{esc(e)}")
+    for p in phones:
+        lines.append(f"TEL;TYPE=CELL:{esc(p)}")
     if org:
         lines.append(f"ORG:{esc(org)}")
     if note:

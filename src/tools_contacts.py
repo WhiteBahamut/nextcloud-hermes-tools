@@ -111,26 +111,51 @@ def _create(args):
     return client.ok(book=book, uid=uid, verified=True)
 
 
+def _as_list(v):
+    """''/None/[] -> []; str -> [v]; else list(v)."""
+    if v is None or v == "" or v == []:
+        return []
+    return [v] if isinstance(v, str) else [x for x in v if x]
+
+
 def _edit(args):
     book = args.get("book") or "contacts"
     uid = args["uid"]
     href, etag, card = _find(book, uid)
-    body = vcard.build_vcard(
-        fn=args.get("fn") or card.get("fn") or "",
-        email=args.get("email") or (card.get("emails") or [""])[0],
-        phone=args.get("phone") or (card.get("phones") or [""])[0],
-        org=args.get("org") if "org" in args else card.get("org", ""),
-        note=args.get("note") if "note" in args else card.get("note", ""),
-        uid=uid,
-    )
+    emails = _as_list(args["email"]) if "email" in args else (card.get("emails") or [])
+    phones = _as_list(args["phone"]) if "phone" in args else (card.get("phones") or [])
+    org = args.get("org") if "org" in args else card.get("org", "")
+    note = args.get("note") if "note" in args else card.get("note", "")
+    fn = args.get("fn") or card.get("fn") or ""
+    body = vcard.build_vcard(fn=fn, email=emails, phone=phones, org=org, note=note, uid=uid)
     client.require(
         client.request("PUT", href, content=body.encode("utf-8"),
                        headers={"Content-Type": "text/vcard; charset=utf-8", "If-Match": etag}),
         (200, 201, 204),
     )
-    got = client.dav_get(href).text
-    if f"UID:{uid}" not in got:
-        return client.err(f"edit verification failed: UID {uid} not in read-back", book=book, uid=uid)
+    got = vcard.parse_vcard(client.dav_get(href).text)
+    esc = vcard.esc
+    expected = {
+        "uid": uid,
+        "fn": esc(fn),
+        "emails": [esc(e) for e in emails],
+        "phones": [esc(p) for p in phones],
+        "org": esc(org) if org else "",
+        "note": esc(note),
+    }
+    if "email" not in args:
+        expected["emails"] = got.get("emails")  # unchanged field: skip comparison
+    if "phone" not in args:
+        expected["phones"] = got.get("phones")
+    if "org" not in args:
+        expected["org"] = got.get("org", "")
+    if "note" not in args:
+        expected["note"] = got.get("note", "")
+    if "fn" not in args or not args.get("fn"):
+        expected["fn"] = got.get("fn", "")
+    problems = [f"{k}: got {got.get(k)!r} != {v!r}" for k, v in expected.items() if got.get(k) != v]
+    if problems:
+        return client.err("edit verification failed: " + "; ".join(problems), book=book, uid=uid)
     return client.ok(book=book, uid=uid, verified=True)
 
 
