@@ -78,6 +78,8 @@ def fabricate(schema: dict, tool_name: str) -> dict:
             args[key] = TOOL_OVERRIDES[tool_name][key]
         elif key in KEY_DEFAULTS:
             args[key] = KEY_DEFAULTS[key]
+        elif pspec.get("enum"):
+            args[key] = pspec["enum"][0]
         elif t == "string":
             args[key] = "demo"
         elif t == "integer":

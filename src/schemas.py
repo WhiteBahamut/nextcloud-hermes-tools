@@ -205,7 +205,7 @@ NC_CAL_DELETE = _s(
     ["calendar", "uid"],
 )
 NC_TASK_LIST = _s(
-    "List tasks (VTODO) of a calendar (default 'tasks'). COMPLETED tasks are included by default (limit caps the noise); pass include_completed=false to hide them.",
+    "List tasks (VTODO) of a calendar (default 'tasks'). COMPLETED tasks are included by default (limit caps the returned list only); pass include_completed=false to hide them. Every successful response includes stats {total, open, closed} counted over ALL tasks in the calendar (closed = STATUS COMPLETED, open = everything else), independent of include_completed/limit; count = number of returned tasks.",
     {
         "calendar": {**CAL, "default": "tasks"},
         "include_completed": {"type": "boolean", "default": True},
@@ -213,13 +213,14 @@ NC_TASK_LIST = _s(
     },
 )
 NC_TASK_CREATE = _s(
-    "Create a task (VTODO, STATUS:NEEDS-ACTION; PUT + verified read-back). Gated.",
+    "Create a task (VTODO; PUT + verified read-back). Initial status defaults to NEEDS-ACTION (open); pass status to set it (COMPLETED also sets COMPLETED timestamp and PERCENT-COMPLETE:100). Gated.",
     {
         "calendar": {**CAL, "default": "tasks"},
         "summary": {"type": "string"},
         "due": {"type": "string", "default": "", "description": "ISO 8601 or YYYY-MM-DD; empty = no due date."},
         "priority": {"type": "integer", "default": 0, "description": "1 = highest ... 9 = lowest; 0 = none."},
         "description": {"type": "string", "default": ""},
+        "status": {"type": "string", "enum": ["NEEDS-ACTION", "IN-PROCESS", "COMPLETED", "CANCELLED"], "default": "NEEDS-ACTION", "description": "Initial STATUS of the new task; default NEEDS-ACTION (open). COMPLETED also sets COMPLETED timestamp and PERCENT-COMPLETE:100."},
     },
     ["summary"],
 )

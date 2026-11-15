@@ -325,6 +325,7 @@ def _task_list(args):
             return _missing_calendar_err(calendar)
         raise
     tasks = []
+    total = n_open = n_closed = 0
     for r in parse_multistatus(resp.text):
         ics_text = r["props"].get("calendar-data")
         if not ics_text:
@@ -333,7 +334,14 @@ def _task_list(args):
             if comp["type"] != "VTODO":
                 continue
             status = (ical.prop(comp, "STATUS", "") or "NEEDS-ACTION").upper()
+            total += 1
+            if status == "COMPLETED":
+                n_closed += 1
+            else:
+                n_open += 1
             if status == "COMPLETED" and not include_completed:
+                continue
+            if len(tasks) >= limit:
                 continue
             tasks.append({
                 "uid": ical.prop(comp, "UID", ""),
@@ -344,11 +352,8 @@ def _task_list(args):
                 "percent": ical.prop(comp, "PERCENT-COMPLETE", ""),
                 "description": ical.prop(comp, "DESCRIPTION", ""),
             })
-            if len(tasks) >= limit:
-                break
-        if len(tasks) >= limit:
-            break
-    return client.ok(calendar=calendar, count=len(tasks), tasks=tasks)
+    return client.ok(calendar=calendar, count=len(tasks), tasks=tasks,
+                     stats={"total": total, "open": n_open, "closed": n_closed})
 
 
 def _task_create(args):
@@ -356,10 +361,14 @@ def _task_create(args):
     summary = args.get("summary") or ""
     if not summary:
         return client.err("summary required")
+    status = (args.get("status") or "NEEDS-ACTION").upper()
+    if status not in ("NEEDS-ACTION", "IN-PROCESS", "COMPLETED", "CANCELLED"):
+        return client.err(f"invalid status {status!r}: expected one of NEEDS-ACTION, IN-PROCESS, COMPLETED, CANCELLED")
     uid = str(uuid.uuid4())
     body = ical.build_vtodo(
         uid=uid, summary=summary, due=args.get("due") or "",
         priority=int(args.get("priority") or 0), description=args.get("description") or "",
+        status=status,
     )
     href = client.cal_dav(calendar) + uid + ".ics"
     try:
@@ -369,9 +378,9 @@ def _task_create(args):
             return _missing_calendar_err(calendar)
         raise
     got = client.dav_get(href).text
-    if f"UID:{uid}" not in got or "STATUS:NEEDS-ACTION" not in got:
+    if f"UID:{uid}" not in got or f"STATUS:{status}" not in got:
         return client.err(f"create verification failed for UID {uid}", calendar=calendar, uid=uid)
-    return client.ok(calendar=calendar, uid=uid, verified=True)
+    return client.ok(calendar=calendar, uid=uid, status=status, verified=True)
 
 
 def _task_complete(args):

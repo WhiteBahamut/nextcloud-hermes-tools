@@ -35,6 +35,13 @@ def test_build_vtodo_needs_action():
     assert "STATUS:NEEDS-ACTION" in text and "DUE;VALUE=DATE:20261120" in text and "PRIORITY:3" in text
 
 
+def test_build_vtodo_status():
+    text = ical.build_vtodo(summary="T", status="cancelled")
+    assert "STATUS:CANCELLED" in text and "COMPLETED:" not in text and "PERCENT-COMPLETE" not in text
+    done = ical.build_vtodo(summary="T", status="COMPLETED")
+    assert "STATUS:COMPLETED" in done and "PERCENT-COMPLETE:100" in done and "COMPLETED:" in done
+
+
 def test_rrule_unsupported_freq_single_occurrence():
     occ = ical.expand_rrule(datetime(2026, 1, 1, 9), "FREQ=YEARLY;COUNT=5")
     assert occ == [datetime(2026, 1, 1, 9)]

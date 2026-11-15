@@ -362,6 +362,31 @@ def test_task_list_filters_completed(nc, call):
     assert res["tasks"][0]["due"] == "20261120"
 
 
+def test_task_list_stats(nc, call):
+    def vtodo(uid, status):
+        return (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\n"
+            f"UID:{uid}\r\nDTSTAMP:20261101T000000Z\r\nSUMMARY:t-{uid}\r\nSTATUS:{status}\r\n"
+            "END:VTODO\r\nEND:VCALENDAR\r\n"
+        )
+
+    def h(req):
+        return multistatus([
+            (f"{TASKS}/a.ics", f"<cal:calendar-data>{vtodo('a', 'NEEDS-ACTION')}</cal:calendar-data>"),
+            (f"{TASKS}/b.ics", f"<cal:calendar-data>{vtodo('b', 'COMPLETED')}</cal:calendar-data>"),
+            (f"{TASKS}/c.ics", f"<cal:calendar-data>{vtodo('c', 'IN-PROCESS')}</cal:calendar-data>"),
+        ])
+
+    nc.handler = h
+    res = call("nc_task_list", {"calendar": "tasks"})
+    assert res["ok"] and res["stats"] == {"total": 3, "open": 2, "closed": 1} and res["count"] == 3
+    res = call("nc_task_list", {"calendar": "tasks", "include_completed": False})
+    assert res["count"] == 2 and [t["uid"] for t in res["tasks"]] == ["a", "c"]
+    assert res["stats"] == {"total": 3, "open": 2, "closed": 1}
+    res = call("nc_task_list", {"calendar": "tasks", "limit": 1})
+    assert res["count"] == 1 and res["stats"]["total"] == 3
+
+
 def test_task_create_verified(nc, call):
     state = {}
 
@@ -379,6 +404,38 @@ def test_task_create_verified(nc, call):
     assert res["ok"] and res["verified"]
     body = state[f"{TASKS}/{res['uid']}.ics"]
     assert "STATUS:NEEDS-ACTION" in body and "DUE;VALUE=DATE:20261120" in body and "PRIORITY:1" in body
+
+
+def test_task_create_initial_status(nc, call):
+    state = {}
+
+    def h(req):
+        p = req.url.path
+        if req.method == "PUT":
+            state[p] = req.content.decode()
+            return httpx.Response(201)
+        if req.method == "GET":
+            return httpx.Response(200, text=state[p]) if p in state else httpx.Response(404, text="nf")
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_task_create", {"calendar": "tasks", "summary": "S", "status": "in-process"})
+    assert res["ok"] and res["verified"] and res["status"] == "IN-PROCESS"
+    assert "STATUS:IN-PROCESS" in state[f"{TASKS}/{res['uid']}.ics"]
+    res = call("nc_task_create", {"calendar": "tasks", "summary": "S", "status": "COMPLETED"})
+    assert res["ok"] and res["verified"] and res["status"] == "COMPLETED"
+    body = state[f"{TASKS}/{res['uid']}.ics"]
+    assert "STATUS:COMPLETED" in body and "PERCENT-COMPLETE:100" in body and "COMPLETED:" in body
+
+
+def test_task_create_invalid_status(nc, call):
+    def h(req):
+        return httpx.Response(500, text="must not be called")
+
+    nc.handler = h
+    res = call("nc_task_create", {"calendar": "tasks", "summary": "S", "status": "bogus"})
+    assert res["ok"] is False and "invalid status" in res["error"]
+    assert nc.requests == []
 
 
 def test_task_complete_sets_status_and_completed(nc, call):

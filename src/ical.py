@@ -277,16 +277,20 @@ def build_vevent(uid=None, summary="", start=None, end=None, all_day=False,
     return wrap_calendar(lines)
 
 
-def build_vtodo(uid=None, summary="", due=None, priority=0, description="", dtstamp=None) -> str:
+def build_vtodo(uid=None, summary="", due=None, priority=0, description="", dtstamp=None, status="NEEDS-ACTION") -> str:
     uid = uid or str(uuid.uuid4())
     dtstamp = dtstamp or datetime.now(timezone.utc)
+    status = status.upper()
     lines = [
         "BEGIN:VTODO",
         f"UID:{uid}",
         f"DTSTAMP:{fmt_dt(dtstamp)[0]}",
         f"SUMMARY:{esc(summary)}",
-        "STATUS:NEEDS-ACTION",
+        f"STATUS:{status}",
     ]
+    if status == "COMPLETED":
+        lines.append(f"COMPLETED:{fmt_dt(datetime.now(timezone.utc))[0]}")
+        lines.append("PERCENT-COMPLETE:100")
     if due:
         dt = parse_iso(due) if isinstance(due, str) else due
         lines.append(_dt_line("DUE", dt, len(str(due)) == 10))
