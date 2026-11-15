@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import time
 from urllib.parse import quote
 
 from . import client, schemas
@@ -62,35 +63,42 @@ def _send(args):
     new_id = created.get("id") if isinstance(created, dict) else None
     if new_id is None:
         return client.err(f"send returned no message id: {created!r}", token=args["token"])
-    # read-back: the new id must appear in a follow-up chat GET
-    data = client.ocs(
-        "GET",
-        f"{BASE}/room/{token}/chat",
-        params={"lookIntoFuture": 0, "limit": 100, "lastKnownMessageId": 0},
-    )
-    ids = {m.get("id") for m in (data or []) if isinstance(m, dict)}
-    if new_id not in ids:
-        return client.err(
-            f"send verification failed: message id {new_id} not in chat read-back",
-            token=args["token"],
+    # read-back anchored at the new id: only messages with id > new_id-1 are
+    # returned, so a busy room cannot false-negative the verification
+    for attempt in range(3):
+        data = client.ocs(
+            "GET",
+            f"{BASE}/room/{token}/chat",
+            params={"lookIntoFuture": 0, "limit": 100, "lastKnownMessageId": int(new_id) - 1},
         )
-    return client.ok(token=args["token"], message_id=new_id, verified=True)
+        ids = {m.get("id") for m in (data or []) if isinstance(m, dict)}
+        if new_id in ids:
+            return client.ok(token=args["token"], message_id=new_id, verified=True)
+        if attempt < 2:
+            time.sleep(0.5)
+    return client.err(
+        f"send verification failed: message id {new_id} not in chat read-back",
+        token=args["token"],
+    )
 
 
 def _delete(args):
     token = quote(str(args["token"]), safe="")
     message_id = int(args["message_id"])
     client.ocs("DELETE", f"{BASE}/room/{token}/chat/{message_id}")
-    # verify gone from a follow-up chat GET
-    data = client.ocs(
-        "GET",
-        f"{BASE}/room/{token}/chat",
-        params={"lookIntoFuture": 0, "limit": 100, "lastKnownMessageId": 0},
-    )
-    ids = {m.get("id") for m in (data or []) if isinstance(m, dict)}
-    if message_id in ids:
-        return client.err(f"delete verification failed: message {message_id} still present", token=args["token"])
-    return client.ok(token=args["token"], message_id=message_id, deleted=True, verified=True)
+    # verify gone: read-back anchored just below the deleted id
+    for attempt in range(3):
+        data = client.ocs(
+            "GET",
+            f"{BASE}/room/{token}/chat",
+            params={"lookIntoFuture": 0, "limit": 100, "lastKnownMessageId": int(message_id) - 1},
+        )
+        ids = {m.get("id") for m in (data or []) if isinstance(m, dict)}
+        if message_id not in ids:
+            return client.ok(token=args["token"], message_id=message_id, deleted=True, verified=True)
+        if attempt < 2:
+            time.sleep(0.5)
+    return client.err(f"delete verification failed: message {message_id} still present", token=args["token"])
 
 
 def _react(args):
