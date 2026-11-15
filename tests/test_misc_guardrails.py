@@ -183,6 +183,31 @@ def test_comments_resolves_path_to_fileid(nc, call):
     assert res["comments"][0]["message"] == "hi there" and res["comments"][0]["actor"] == "bot"
 
 
+def test_comments_propfind_requests_oc_props(nc, call):
+    def h(req):
+        p = req.url.path
+        if req.method == "PROPFIND" and p.startswith("/remote.php/dav/comments/files/4242"):
+            return multistatus([
+                ("/remote.php/dav/comments/files/4242", ""),
+                ("/remote.php/dav/comments/files/4242/1",
+                 "<oc:id>1</oc:id><oc:message>hi</oc:message><oc:actorDisplayName>bot</oc:actorDisplayName>"),
+            ])
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_comments", {"action": "list", "file_id": "4242"})
+    assert res["ok"]
+    assert res["comments"][0]["message"] == "hi"
+    assert res["comments"][0]["actor"] == "bot"
+    bodies = [r.content for r in nc.requests
+              if r.method == "PROPFIND"
+              and r.url.path.startswith("/remote.php/dav/comments/files/4242")]
+    assert bodies
+    for tag in (b"<oc:id/>", b"<oc:message/>", b"<oc:actorId/>", b"<oc:actorDisplayName/>",
+                b"<oc:verb/>", b"<oc:creationDateTime/>"):
+        assert tag in bodies[0]
+
+
 def test_comments_add_posts_json_and_verifies(nc, call):
     posted = {}
 

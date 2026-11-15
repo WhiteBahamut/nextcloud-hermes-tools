@@ -88,3 +88,13 @@ PROPFIND_ALL = (
     "<cal:calendar-data/><card:address-data/>"
     "</d:prop></d:propfind>"
 )
+
+# PROPFIND body for the comments DAV collection (oc: comment props only).
+PROPFIND_COMMENTS = (
+    '<?xml version="1.0" encoding="utf-8"?>'
+    '<d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">'
+    "<d:prop>"
+    "<d:resourcetype/><oc:id/><oc:message/><oc:actorId/><oc:actorDisplayName/>"
+    "<oc:verb/><oc:creationDateTime/>"
+    "</d:prop></d:propfind>"
+)

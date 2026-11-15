@@ -14,7 +14,7 @@ from urllib.parse import unquote
 from xml.sax.saxutils import escape as xml_escape
 
 from . import client, schemas
-from .dav import PROPFIND_ALL, parse_multistatus, user_path
+from .dav import PROPFIND_ALL, PROPFIND_COMMENTS, parse_multistatus, user_path
 
 
 def _dav_base() -> str:
@@ -195,7 +195,7 @@ def _comment_dict(props: dict) -> dict:
 
 
 def _comments_list(base: str, file_id: str):
-    resp = client.propfind(base + "/", depth=1, body=PROPFIND_ALL)
+    resp = client.propfind(base + "/", depth=1, body=PROPFIND_COMMENTS)
     target = base.rstrip("/")
     out = []
     for r in parse_multistatus(resp.text):
