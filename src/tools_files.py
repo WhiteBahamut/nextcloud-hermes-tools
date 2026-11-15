@@ -72,6 +72,11 @@ def _put(args):
         data = base64.b64decode(args["content_base64"])
     else:
         data = (args.get("content") or "").encode("utf-8")
+    if not data and not args.get("allow_empty"):
+        return client.err(
+            "empty content: pass content/content_base64, or allow_empty=true to write an empty file",
+            path=path,
+        )
     href = client.files_dav(path)
     try:
         client.put_verified(href, data, content_type=args.get("content_type") or "")

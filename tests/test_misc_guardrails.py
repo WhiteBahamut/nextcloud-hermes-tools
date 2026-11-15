@@ -68,6 +68,16 @@ def test_guard_brief_truncates_long_paths():
     assert "x" * 120 not in w["message"]
 
 
+def test_guard_file_put_summary_shows_byte_size():
+    g = guardrails.guard
+    w = g("nc_file_put", {"path": "/a.txt", "content": "hello"})
+    assert "create or overwrite file '/a.txt' (5 bytes) (nc_file_put)" in w["message"]
+    w = g("nc_file_put", {"path": "/a.bin", "content_base64": "AAECAwQ="})
+    assert "(5 bytes)" in w["message"]
+    w = g("nc_file_put", {"path": "/a.txt", "allow_empty": True})
+    assert "(0 bytes, empty file)" in w["message"]
+
+
 @pytest.mark.parametrize("name", sorted(guardrails.WRITES | guardrails.DESTRUCTIVE))
 def test_guard_summary_covers_every_gated_tool(name):
     assert name in guardrails._SUMMARIES

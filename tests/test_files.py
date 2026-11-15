@@ -71,6 +71,34 @@ def test_file_put_readback_mismatch_fails(nc, call):
     assert res["ok"] is False and "verification" in res["error"]
 
 
+def test_file_put_empty_rejected_before_any_request(nc, call):
+    nc.handler = lambda req: httpx.Response(500, text="must not be called")
+    res = call("nc_file_put", {"path": "/x.txt"})
+    assert res["ok"] is False and "empty content" in res["error"]
+    assert nc.requests == []  # rejected before any HTTP request
+    res = call("nc_file_put", {"path": "/x.txt", "content": ""})
+    assert res["ok"] is False and nc.requests == []
+
+
+def test_file_put_allow_empty_writes_zero_bytes(nc, call):
+    state = {}
+
+    def h(req):
+        p = req.url.path
+        if req.method == "PUT":
+            state[p] = req.content
+            return httpx.Response(201)
+        if req.method == "GET":
+            return httpx.Response(200, content=state[p]) if p in state else httpx.Response(404, text="nf")
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_file_put", {"path": "/empty.txt", "allow_empty": True})
+    assert res["ok"] and res["verified"] is True and res["size"] == 0
+    puts = [r for r in nc.requests if r.method == "PUT"]
+    assert len(puts) == 1 and puts[0].content == b""
+
+
 def test_move_423_fallback_order_put_before_delete(nc, call):
     state = {f"{FILES}/src.txt": b"data123"}
 

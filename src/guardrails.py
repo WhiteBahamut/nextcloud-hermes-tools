@@ -21,6 +21,7 @@ anything else returns ``None``. Non-``nc_`` tools always return ``None``.
 
 from __future__ import annotations
 
+import base64
 import logging
 
 from . import client
@@ -60,7 +61,7 @@ def _brief(args) -> str:
 # Plain-English approval summaries, one template per gated tool. Placeholders
 # are schema arg names (src/schemas.py); _describe renders them safely.
 _SUMMARIES = {
-    "nc_file_put": "create or overwrite file '{path}'",
+    "nc_file_put": "create or overwrite file '{path}' ({size} bytes)",
     "nc_file_mkdir": "create folder '{path}'",
     "nc_file_move": "move '{source}' to '{destination}'",
     "nc_file_delete": "delete '{path}' (moves to trashbin)",
@@ -138,6 +139,17 @@ def _describe(name: str, args) -> str:
         extra["method"] = method
     elif name == "nc_talk_react":
         extra["react"] = "add" if a.get("react", True) else "remove"
+    elif name == "nc_file_put":
+        try:
+            if a.get("content_base64"):
+                size = len(base64.b64decode(a["content_base64"]))
+            else:
+                size = len(a.get("content") or "")
+        except Exception:
+            size = 0
+        extra["size"] = size
+        if size == 0 and a.get("allow_empty"):
+            template = "create or overwrite file '{path}' ({size} bytes, empty file)"
     elif name == "nc_note_edit" and str(a.get("title") or ""):
         template = "edit note '{title}' (id {id})"
     elif name == "nc_contact_edit" and str(a.get("fn") or ""):

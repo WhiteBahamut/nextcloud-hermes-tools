@@ -42,12 +42,13 @@ NC_FILE_GET = _s(
     ["path"],
 )
 NC_FILE_PUT = _s(
-    "Create or overwrite a file (PUT + read-back sha256 verification). Use `content` for text, `content_base64` for binary (wins over content).",
+    "Create or overwrite a file (PUT + read-back sha256 verification). Use `content` for text, `content_base64` for binary (wins over content). Empty content is rejected unless `allow_empty=true` so an existing file is never clobbered to 0 bytes.",
     {
         "path": PATH,
         "content": {"type": "string", "default": "", "description": "Text content (utf-8)."},
         "content_base64": {"type": "string", "default": "", "description": "Base64-encoded binary content."},
         "content_type": {"type": "string", "default": "", "description": "Optional Content-Type header."},
+        "allow_empty": {"type": "boolean", "default": False, "description": "Allow a 0-byte write; without it, empty content/content_base64 is rejected so an existing file is never clobbered to 0 bytes."},
     },
     ["path"],
 )
