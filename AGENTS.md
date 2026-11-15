@@ -14,8 +14,6 @@ packaging config.
 **Style:** clear instructions in this file use imperative RFC 2119 keywords — `MUST` /
 `MUST NOT` for hard requirements (`NEVER` = `MUST NOT`, `AVOID` = `SHOULD NOT`).
 
-Skills and plans authored for this repo MUST use the same imperative RFC 2119 keywords, and every plan step MUST carry explicit Guidance, Guardrails, and a success Check.
-
 When editing files, re-read first — NEVER guess line numbers or edit anchors; if a multi-part edit is rejected, apply the fixes as separate single edits; if a file gets mangled, rewrite it wholesale.
 
 ## Do this first
