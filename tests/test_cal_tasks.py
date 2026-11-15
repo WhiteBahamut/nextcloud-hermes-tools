@@ -37,9 +37,39 @@ def test_rrule_exdate_and_range_filter():
     occ = ical.expand_rrule(
         datetime(2026, 11, 2, 9), "FREQ=DAILY;COUNT=5",
         range_start=datetime(2026, 11, 3), range_end=datetime(2026, 11, 5, 23, 59),
-        exdates=[("20261104T090000", {})],
+        exdates=[({}, "20261104T090000")],
     )
     assert [o.day for o in occ] == [3, 5]  # 4th excluded via EXDATE
+
+
+def test_rrule_exdate_from_parse_ics():
+    # regression: parse_ics stores props as (params, value); expand_rrule must unpack in that order
+    ics = (
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:x1\r\nDTSTAMP:20261101T000000Z\r\n"
+        "DTSTART;TZID=Europe/Berlin:20261102T090000\r\nDTEND;TZID=Europe/Berlin:20261102T100000\r\n"
+        "RRULE:FREQ=DAILY;COUNT=5\r\nEXDATE;TZID=Europe/Berlin:20261104T090000\r\n"
+        "END:VEVENT\r\nEND:VCALENDAR\r\n"
+    )
+    vevent = ical.first_component(ical.parse_ics(ics), "VEVENT")
+    dt_p, dt_v = ical.prop_with_params(vevent, "DTSTART")
+    occ = ical.expand_rrule(
+        ical.parse_dt(dt_v, dt_p),
+        ical.prop(vevent, "RRULE"),
+        exdates=vevent["props"]["EXDATE"],
+    )
+    assert [o.day for o in occ] == [2, 3, 5, 6]  # 4th excluded, no exception
+
+
+def test_event_dict_exdate_end_to_end():
+    ics = (
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:x2\r\nDTSTAMP:20261101T000000Z\r\n"
+        "DTSTART:20261102T090000Z\r\nDTEND:20261102T100000Z\r\n"
+        "RRULE:FREQ=DAILY;COUNT=4\r\nEXDATE:20261104T090000Z\r\n"
+        "END:VEVENT\r\nEND:VCALENDAR\r\n"
+    )
+    vevent = ical.first_component(ical.parse_ics(ics), "VEVENT")
+    ev = tools_cal._event_dict(vevent, None, None)
+    assert [o["start"][:10] for o in ev["occurrences"]] == ["2026-11-02", "2026-11-03", "2026-11-05"]
 
 
 def test_rrule_capped_at_500():

@@ -370,7 +370,7 @@ def expand_rrule(dtstart, rrule, range_start=None, range_end=None, exdates=(), m
     """Expand an RRULE into occurrence start datetimes, capped at ``max_occ``.
 
     Supports FREQ=DAILY/WEEKLY/MONTHLY, INTERVAL, COUNT, UNTIL, BYDAY (WEEKLY)
-    and EXDATE. ``exdates`` is an iterable of (value, params) ICS EXDATE entries.
+    and EXDATE. ``exdates`` is an iterable of (params, value) ICS EXDATE entries.
     """
     start = _naive(dtstart)
     r = parse_rrule(rrule) if rrule else {}
@@ -390,7 +390,7 @@ def expand_rrule(dtstart, rrule, range_start=None, range_end=None, exdates=(), m
             key = d.strip().upper()[-2:]
             if key in WEEKDAYS:
                 byday.append(WEEKDAYS[key])
-    exset = {_naive(parse_dt(v, p)) for v, p in exdates}
+    exset = {_naive(parse_dt(v, p)) for p, v in exdates}
     rstart = _naive(range_start) if range_start is not None else None
     rend = _naive(range_end) if range_end is not None else None
 
