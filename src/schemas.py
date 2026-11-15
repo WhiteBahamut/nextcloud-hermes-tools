@@ -25,10 +25,11 @@ ISO_DT = r"^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2}
 # --- files (WebDAV) ----------------------------------------------------------
 
 NC_FILE_LIST = _s(
-    "List entries of a Nextcloud folder (WebDAV PROPFIND). depth '0' = the entry itself, '1' = direct children (default), 'infinity' = whole subtree (cap with limit).",
+    "List entries of a Nextcloud folder (WebDAV PROPFIND). depth 0 = the entry itself, 1 = direct children (default); recursive=true lists the whole subtree (Depth: infinity, cap with limit).",
     {
         "path": {**PATH, "default": "/"},
-        "depth": {"type": "string", "enum": ["0", "1", "infinity"], "default": "1", "description": "PROPFIND depth: '0' = the entry itself, '1' = direct children (default), 'infinity' = whole subtree (cap with limit)."},
+        "depth": {"anyOf": [{"type": "integer", "enum": [0, 1]}, {"type": "string", "enum": ["0", "1", "infinity"]}], "default": 1, "description": "0 = the entry itself, 1 = direct children (default). Integer or legacy string form both accepted; 'infinity'/recursive=true = whole subtree."},
+        "recursive": {"type": "boolean", "default": False, "description": "true = whole subtree (Depth: infinity) — cap with limit; equivalent to the legacy depth='infinity'."},
         "limit": {"type": "integer", "default": 200, "description": "Max entries returned."},
     },
 )

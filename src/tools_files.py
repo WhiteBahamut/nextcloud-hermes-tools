@@ -25,7 +25,7 @@ def _prefix() -> str:
 
 def _list(args):
     path = args.get("path") or "/"
-    depth = str(args.get("depth") or "1")
+    depth = "infinity" if args.get("recursive") else str(args.get("depth") if args.get("depth") is not None else 1)
     if depth not in ("0", "1", "infinity"):
         return client.err(f"invalid depth {depth!r}: use 0, 1 or infinity")
     limit = int(args.get("limit") or 200)

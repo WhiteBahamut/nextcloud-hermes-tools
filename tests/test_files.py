@@ -13,7 +13,7 @@ def test_file_list_parses_multistatus(nc, call):
     res = call("nc_file_list", {"path": "/"})
     assert res["ok"] and res["count"] == 2
     assert nc.requests[0].method == "PROPFIND"
-    assert nc.requests[0].headers["Depth"] == "1"  # explicit Depth
+    assert nc.requests[0].headers["Depth"] == "1"  # explicit Depth (int 1 default)
     by_name = {e["name"]: e for e in res["entries"]}
     assert set(by_name) == {"Docs", "a b.txt"}  # href URL-decoded
     assert by_name["Docs"]["is_dir"] is True
@@ -24,6 +24,20 @@ def test_file_list_parses_multistatus(nc, call):
 def test_file_list_invalid_depth(nc, call):
     res = call("nc_file_list", {"path": "/", "depth": "2"})
     assert res["ok"] is False
+
+
+def test_file_list_depth_forms(nc, call):
+    nc.handler = lambda req: multistatus([(f"{FILES}/", '<d:resourcetype><d:collection/></d:resourcetype>')])
+    for depth, header in ((1, "1"), ("1", "1"), ("0", "0"), ("infinity", "infinity")):
+        res = call("nc_file_list", {"path": "/", "depth": depth})
+        assert res["ok"] and res["depth"] == str(depth), depth
+        assert nc.requests[-1].headers["Depth"] == header
+    res = call("nc_file_list", {"path": "/", "recursive": True})
+    assert res["ok"] and res["depth"] == "infinity"
+    assert nc.requests[-1].headers["Depth"] == "infinity"
+    n = len(nc.requests)
+    res = call("nc_file_list", {"path": "/", "depth": 2})
+    assert res["ok"] is False and len(nc.requests) == n  # rejected before any request
 
 
 def test_file_get_text_and_base64(nc, call):
