@@ -601,6 +601,74 @@ def test_cal_create_passes_times_through(nc, call):
     assert not any("DTSTART:20261110T120000Z" in b for b in bodies)
 
 
+def test_cal_create_date_only_without_all_day_rejected(nc, call):
+    nc.handler = lambda req: httpx.Response(500, text="must not be called")
+    res = call("nc_cal_create", {
+        "calendar": "personal", "summary": "X",
+        "start": "2026-11-20", "end": "2026-11-21",
+    })
+    assert res["ok"] is False
+    assert "all_day" in res["error"]
+    assert nc.requests == []
+
+
+def test_cal_create_mixed_offset_styles_rejected(nc, call):
+    nc.handler = lambda req: httpx.Response(500, text="must not be called")
+    res = call("nc_cal_create", {
+        "calendar": "personal", "summary": "X",
+        "start": "2026-11-16T09:00:00Z", "end": "2026-11-16T10:30:00+02:00",
+    })
+    assert res["ok"] is False
+    assert "offset style" in res["error"]
+    assert nc.requests == []
+
+
+def test_cal_create_consistent_offset_pair_stored_floating(nc, call):
+    state = {}
+    nc.handler = _put_get_state_handler(state)
+    res = call("nc_cal_create", {
+        "calendar": "personal", "summary": "X",
+        "start": "2026-11-16T12:00:00+01:00", "end": "2026-11-16T13:00:00+01:00",
+    })
+    assert res["ok"] and res["verified"], res
+    body = state[f"{CAL}/{res['uid']}.ics"]
+    assert "DTSTART:20261116T120000" in body
+    assert "DTEND:20261116T130000" in body
+    assert "DTSTART:20261116T120000Z" not in body
+    assert "DTEND:20261116T130000Z" not in body
+
+
+def test_cal_edit_date_only_on_timed_event_rejected(nc, call):
+    uid = "uid-timed"
+    ics = (
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:uid-timed\r\nDTSTAMP:20261101T000000Z\r\n"
+        "DTSTART:20261110T140000Z\r\nDTEND:20261110T150000Z\r\nSUMMARY:Timed\r\n"
+        "END:VEVENT\r\nEND:VCALENDAR\r\n"
+    )
+    state = {}
+    _edit_handler(nc, state, ics, uid)
+    res = call("nc_cal_edit", {"calendar": "personal", "uid": uid, "start": "2026-11-20"})
+    assert res["ok"] is False
+    assert "all_day" in res["error"]
+    assert nc.find("PUT", "") == []
+    assert state == {}
+
+
+def test_cal_edit_mixed_new_end_against_z_start_rejected(nc, call):
+    uid = "uid-z"
+    ics = (
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:uid-z\r\nDTSTAMP:20261101T000000Z\r\n"
+        "DTSTART:20261116T090000Z\r\nDTEND:20261116T100000Z\r\nSUMMARY:Z\r\n"
+        "END:VEVENT\r\nEND:VCALENDAR\r\n"
+    )
+    state = {}
+    _edit_handler(nc, state, ics, uid)
+    res = call("nc_cal_edit", {"calendar": "personal", "uid": uid, "end": "2026-11-16T10:30:00+02:00"})
+    assert res["ok"] is False
+    assert "offset style" in res["error"]
+    assert nc.find("PUT", "") == []
+
+
 def test_task_create_due_passthrough(nc, call):
     state = {}
     nc.handler = _put_get_state_handler(state)

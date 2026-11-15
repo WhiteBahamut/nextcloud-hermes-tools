@@ -141,6 +141,22 @@ def fmt_dt(dt, all_day: bool = False):
     return dt.strftime("%Y%m%dT%H%M%S"), False
 
 
+DATE_ONLY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def is_date_only(s: str) -> bool:
+    """True for a plain YYYY-MM-DD string (parse_iso turns it into naive midnight)."""
+    return bool(DATE_ONLY_RE.match((s or "").strip()))
+
+
+def dt_style(dt) -> str:
+    """Storage style fmt_dt emits for dt: "z" (aware, utcoffset 0), "offset"
+    (aware, non-zero offset, emitted floating), or "floating" (naive)."""
+    if isinstance(dt, datetime) and dt.tzinfo is not None:
+        return "z" if dt.utcoffset() == timedelta(0) else "offset"
+    return "floating"
+
+
 def _naive(dt):
     if isinstance(dt, datetime) and dt.tzinfo is not None:
         return dt.replace(tzinfo=None)

@@ -94,3 +94,13 @@ def test_fmt_dt_passthrough_no_conversion():
     plus2 = datetime(2026, 11, 10, 14, tzinfo=tz(timedelta(hours=2)))
     assert ical.fmt_dt(plus2)[0] == "20261110T140000"  # wall time kept, no conversion to 120000Z
     assert ical.fmt_dt(datetime(2026, 11, 10, 14))[0] == "20261110T140000"
+
+
+def test_is_date_only_and_dt_style():
+    from datetime import timedelta, timezone as tz
+
+    assert ical.is_date_only("2026-11-20") is True
+    assert ical.is_date_only("2026-11-20T00:00:00") is False
+    assert ical.dt_style(datetime(2026, 11, 16, 9, tzinfo=tz.utc)) == "z"
+    assert ical.dt_style(datetime(2026, 11, 16, 9, tzinfo=tz(timedelta(hours=2)))) == "offset"
+    assert ical.dt_style(datetime(2026, 11, 16, 9)) == "floating"

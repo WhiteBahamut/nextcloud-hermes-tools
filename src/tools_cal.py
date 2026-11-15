@@ -171,6 +171,36 @@ def _reminder_trigger(v) -> str | None:
     return ical.fmt_duration(ical.parse_duration(v.strip().upper()))
 
 
+def _check_dt_args(start_raw, end_raw, all_day, vevent=None):
+    """Pre-write validation of start/end raw strings for create/edit.
+
+    vevent: existing VEVENT in edit mode (the unchanged counterpart's style
+    joins the consistency check); None in create mode. Returns an error
+    message, or None when valid. Never raises.
+    """
+    for name, raw in (("start", start_raw), ("end", end_raw)):
+        if raw and ical.is_date_only(raw) and not all_day:
+            return f"date-only {name} (YYYY-MM-DD) requires all_day=true"
+    if all_day:
+        return None
+    styles = set()
+    for raw in (start_raw, end_raw):
+        if raw and not ical.is_date_only(raw):
+            dt = ical.parse_iso(raw)
+            if dt is not None:
+                styles.add(ical.dt_style(dt))
+    if vevent is not None:
+        for raw, other in ((start_raw, "DTEND"), (end_raw, "DTSTART")):
+            if raw and not ical.is_date_only(raw):
+                p, v = ical.prop_with_params(vevent, other)
+                if v:
+                    styles.add(ical.dt_style(ical.parse_dt(v, p)))
+    if len(styles) > 1:
+        return ("start and end must use one offset style "
+                "(all Z, all ±HH:MM, or all floating); got mixed styles")
+    return None
+
+
 def _event_dict(vevent, rstart, rend) -> dict:
     uid = ical.prop(vevent, "UID", "")
     dtstart_params, dtstart_val = ical.prop_with_params(vevent, "DTSTART")
@@ -281,11 +311,13 @@ def _cal_list(args):
 def _cal_create(args):
     calendar = args.get("calendar") or "personal"
     summary = args.get("summary") or ""
+    all_day = bool(args.get("all_day"))
     start = ical.parse_iso(args.get("start") or "")
     end = ical.parse_iso(args.get("end") or "")
     if start is None or end is None:
         return client.err("start and end must be ISO 8601 (YYYY-MM-DD with all_day=true, or full datetime)")
-    all_day = bool(args.get("all_day"))
+    if msg := _check_dt_args(args.get("start") or "", args.get("end") or "", all_day):
+        return client.err(msg)
     uid = str(uuid.uuid4())
     try:
         trigger = _reminder_trigger(args.get("reminder"))
@@ -314,6 +346,11 @@ def _cal_edit(args):
     if vevent is None:
         return client.err(f"no VEVENT at {href}")
     all_day = args.get("all_day") if "all_day" in args else None
+    if all_day is None:
+        _p, _ = ical.prop_with_params(vevent, "DTSTART")
+        all_day = _p.get("VALUE", "").upper() == "DATE"
+    if msg := _check_dt_args(args.get("start") or "", args.get("end") or "", all_day, vevent=vevent):
+        return client.err(msg)
     if args.get("summary"):
         vevent["props"]["SUMMARY"] = [({}, ical.esc(args["summary"]))]
     if args.get("start"):
