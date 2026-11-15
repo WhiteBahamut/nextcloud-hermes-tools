@@ -19,6 +19,9 @@ CAL = {
 }
 BOOK = {"type": "string", "description": "Address book DAV directory name."}
 
+# date-only, or date + time with optional seconds/fraction and optional Z/±HH:MM offset
+ISO_DT = r"^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$"
+
 # --- files (WebDAV) ----------------------------------------------------------
 
 NC_FILE_LIST = _s(
@@ -163,18 +166,26 @@ NC_CAL_LIST = _s(
     "List calendar events in a time range (CalDAV REPORT time-range; recurring events expanded client-side, capped at 500 occurrences). Defaults: from = now-30d, to = now+90d. Defaults from/to are computed in the server_timezone setting (empty = server timezone, UTC fallback).",
     {
         "calendar": {**CAL, "default": "personal"},
-        "from": {"type": "string", "default": "", "description": "ISO 8601 range start, e.g. 2026-11-01T00:00:00+00:00. Used exactly as given — no timezone conversion."},
-        "to": {"type": "string", "default": "", "description": "ISO 8601 range end. Used exactly as given — no timezone conversion."},
+        "from": {"type": "string", "default": "", "pattern": ISO_DT,
+                 "examples": ["2026-11-01T00:00:00+00:00", "2026-11-01"],
+                 "description": "ISO 8601 range start (date-only or datetime; Z or ±HH:MM offset optional). Used exactly as given — no timezone conversion."},
+        "to": {"type": "string", "default": "", "pattern": ISO_DT,
+               "examples": ["2026-11-30T23:59:59Z", "2026-11-30"],
+               "description": "ISO 8601 range end (date-only or datetime; Z or ±HH:MM offset optional). Used exactly as given — no timezone conversion."},
         "limit": {"type": "integer", "default": 100},
     },
 )
 NC_CAL_CREATE = _s(
-    "Create a calendar event (PUT new .ics, verified read-back). Gated. start/end ISO 8601 (or YYYY-MM-DD when all_day). rrule e.g. 'FREQ=WEEKLY;BYDAY=MO,WE;COUNT=10'. reminder is an optional ISO 8601 duration (e.g. '-PT15M') written as a VALARM TRIGGER relative to start.",
+    "Create a calendar event (PUT new .ics, verified read-back). Gated. start/end ISO 8601 (or YYYY-MM-DD when all_day); keep one offset style per event (all Z or all ±HH:MM) — times are stored exactly as given, never converted. rrule e.g. 'FREQ=WEEKLY;BYDAY=MO,WE;COUNT=10'. reminder is an optional ISO 8601 duration (e.g. '-PT15M') written as a VALARM TRIGGER relative to start.",
     {
         "calendar": {**CAL, "default": "personal"},
         "summary": {"type": "string"},
-        "start": {"type": "string", "description": "ISO 8601 start, or YYYY-MM-DD when all_day. Used exactly as given — no timezone conversion."},
-        "end": {"type": "string", "description": "ISO 8601 end, or YYYY-MM-DD when all_day. Used exactly as given — no timezone conversion."},
+        "start": {"type": "string", "pattern": ISO_DT,
+                  "examples": ["2026-11-10T14:00:00+02:00", "2026-11-10T14:00:00Z", "2026-11-10"],
+                  "description": "ISO 8601 start; a plain YYYY-MM-DD only together with all_day=true. Use the same offset style as end. Used exactly as given — no timezone conversion."},
+        "end": {"type": "string", "pattern": ISO_DT,
+                "examples": ["2026-11-10T15:00:00+02:00", "2026-11-10T15:00:00Z", "2026-11-11"],
+                "description": "ISO 8601 end; a plain YYYY-MM-DD only together with all_day=true. Use the same offset style as start. Used exactly as given — no timezone conversion."},
         "all_day": {"type": "boolean", "default": False},
         "description": {"type": "string", "default": ""},
         "location": {"type": "string", "default": ""},
@@ -189,8 +200,12 @@ NC_CAL_EDIT = _s(
         "calendar": CAL,
         "uid": {"type": "string", "description": "VEVENT UID."},
         "summary": {"type": "string", "default": ""},
-        "start": {"type": "string", "default": "", "description": "ISO 8601 start, or YYYY-MM-DD when all_day. Used exactly as given — no timezone conversion."},
-        "end": {"type": "string", "default": "", "description": "ISO 8601 end, or YYYY-MM-DD when all_day. Used exactly as given — no timezone conversion."},
+        "start": {"type": "string", "default": "", "pattern": ISO_DT,
+                  "examples": ["2026-11-10T14:00:00+02:00", "2026-11-10"],
+                  "description": "ISO 8601 start (empty = unchanged); a plain YYYY-MM-DD only together with all_day=true. Use the same offset style as end. Used exactly as given — no timezone conversion."},
+        "end": {"type": "string", "default": "", "pattern": ISO_DT,
+                "examples": ["2026-11-10T15:00:00Z", "2026-11-11"],
+                "description": "ISO 8601 end (empty = unchanged); a plain YYYY-MM-DD only together with all_day=true. Use the same offset style as start. Used exactly as given — no timezone conversion."},
         "all_day": {"type": "boolean", "default": False},
         "description": {"type": "string", "default": ""},
         "location": {"type": "string", "default": ""},
@@ -217,7 +232,9 @@ NC_TASK_CREATE = _s(
     {
         "calendar": {**CAL, "default": "tasks"},
         "summary": {"type": "string"},
-        "due": {"type": "string", "default": "", "description": "ISO 8601 or YYYY-MM-DD; empty = no due date. Used exactly as given — no timezone conversion."},
+        "due": {"type": "string", "default": "", "pattern": ISO_DT,
+                "examples": ["2026-11-20T18:00:00+02:00", "2026-11-20"],
+                "description": "ISO 8601 datetime, or YYYY-MM-DD (stored as all-day VALUE=DATE); empty = no due date. Used exactly as given — no timezone conversion."},
         "priority": {"type": "integer", "default": 0, "description": "1 = highest ... 9 = lowest; 0 = none."},
         "description": {"type": "string", "default": ""},
         "status": {"type": "string", "enum": ["NEEDS-ACTION", "IN-PROCESS", "COMPLETED", "CANCELLED"], "default": "NEEDS-ACTION", "description": "Initial STATUS of the new task; default NEEDS-ACTION (open). COMPLETED also sets COMPLETED timestamp and PERCENT-COMPLETE:100."},
