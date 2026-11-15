@@ -36,7 +36,7 @@ READ_ONLY = frozenset({
 })
 
 WRITES = frozenset({
-    "nc_file_put", "nc_file_mkdir", "nc_file_move", "nc_share_create",
+    "nc_file_put", "nc_file_mkdir", "nc_file_move", "nc_file_copy", "nc_share_create",
     "nc_talk_send", "nc_talk_react", "nc_cal_create", "nc_cal_edit",
     "nc_task_create", "nc_task_complete", "nc_task_reopen", "nc_contact_create", "nc_contact_edit",
     "nc_note_create", "nc_note_edit", "nc_tag_assign", "nc_tag_unassign",
@@ -64,6 +64,7 @@ _SUMMARIES = {
     "nc_file_put": "create or overwrite file '{path}' ({size} bytes)",
     "nc_file_mkdir": "create folder '{path}'",
     "nc_file_move": "move '{source}' to '{destination}'",
+    "nc_file_copy": "copy '{source}' to '{destination}'",
     "nc_file_delete": "delete '{path}' (moves to trashbin)",
     "nc_share_create": "share '{path}' with '{share_with}' (type {share_type}, permissions {permissions})",
     "nc_share_delete": "delete share with id {id}",

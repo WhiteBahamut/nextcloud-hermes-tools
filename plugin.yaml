@@ -1,7 +1,7 @@
 name: nextcloud-tools
-version: 0.13.3
+version: 0.14.0
 description: >-
-  Nextcloud toolset for Hermes Agent: 44 tools against one Nextcloud server -
+  Nextcloud toolset for Hermes Agent: 45 tools against one Nextcloud server -
   files (WebDAV), unified/full-text search, shares, Talk, calendar, tasks,
   contacts, notes, activity, notifications, tags, trashbin, comments and a
   generic OCS escape hatch. All handlers return JSON strings; writes are
@@ -27,6 +27,7 @@ provides_tools:
   - nc_file_put
   - nc_file_mkdir
   - nc_file_move
+  - nc_file_copy
   - nc_file_delete
   # search
   - nc_search

@@ -1,4 +1,4 @@
-"""JSON-Schema definitions for all 44 nextcloud-tools.
+"""JSON-Schema definitions for all 45 nextcloud-tools.
 
 One dict per tool: ``{"description": ..., "parameters": {"type": "object", ...}}``.
 Descriptions teach the model when to call each tool.
@@ -63,6 +63,16 @@ NC_FILE_MOVE = _s(
         "source": {**PATH, "description": "Current path."},
         "destination": {**PATH, "description": "New full path."},
         "overwrite": {"type": "boolean", "default": True, "description": "Overwrite an existing destination (default true)."},
+    },
+    ["source", "destination"],
+)
+
+NC_FILE_COPY = _s(
+    "Copy a file (GET source bytes -> PUT destination with sha256 read-back verification). Folders are not copied — use nc_file_move. `destination` is the new FULL path. Gated.",
+    {
+        "source": {**PATH, "description": "Current path."},
+        "destination": {**PATH, "description": "New full path."},
+        "overwrite": {"type": "boolean", "default": True, "description": "Overwrite an existing destination."},
     },
     ["source", "destination"],
 )

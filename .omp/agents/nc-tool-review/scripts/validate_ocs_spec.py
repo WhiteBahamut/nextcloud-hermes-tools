@@ -13,7 +13,7 @@ What it does, all offline against the sha256-locked ``.cache/upstream/`` pins:
 2. ``src/`` is loaded via importlib exactly like ``tests/conftest.py``; tools are
    registered on a FakeCtx; ``client.get_client`` is replaced by an
    ``httpx.MockTransport`` in-memory server (no real sockets — same rule as the
-  committed tests). Every one of the 44 ``nc_*`` handlers is then called with
+  committed tests). Every ``nc_*`` handler is then called with
    schema-derived args, so each tool records its real request(s).
 3. Every recorded request whose path starts with ``/ocs/v2.php/`` must match a spec
    path (template ``{param}`` aware), allow the method, carry every spec-required
@@ -338,7 +338,9 @@ def main() -> int:
             check(f"{name} issued at least one request", False, f"result ok={result.get('ok')} error={str(result.get('error'))[:120]}")
         else:
             check(f"{name} drove {tool_requests[name]} request(s)", True)
-    check("all 44 tools registered", len(ctx.tools) == 44, f"{len(ctx.tools)} tools")
+    manifest = (ROOT / "plugin.yaml").read_text(encoding="utf-8")
+    expected = len(re.findall(r"^  - (nc_\w+)$", manifest, re.M))
+    check(f"all {expected} manifest tools registered", len(ctx.tools) == expected, f"{len(ctx.tools)} tools")
 
     # --- validate every recorded request against the latest spec ----------------------
     spec = spec35

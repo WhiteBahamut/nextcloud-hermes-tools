@@ -99,6 +99,88 @@ def test_file_put_allow_empty_writes_zero_bytes(nc, call):
     assert len(puts) == 1 and puts[0].content == b""
 
 
+def test_file_copy_happy_path_request_order_and_verify(nc, call):
+    state = {}
+
+    def h(req):
+        p = req.url.path
+        if req.method == "PROPFIND":
+            if p == f"{FILES}/src.txt":
+                return multistatus([(f"{FILES}/src.txt", '<d:resourcetype/><d:getcontenttype>text/plain</d:getcontenttype>')])
+            return httpx.Response(404, text="nf")  # destination absent
+        if req.method == "GET" and p == f"{FILES}/src.txt":
+            return httpx.Response(200, content=b"copy me")
+        if req.method == "PUT":
+            state[p] = req.content
+            return httpx.Response(201)
+        if req.method == "GET":
+            return httpx.Response(200, content=state[p]) if p in state else httpx.Response(404, text="nf")
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_file_copy", {"source": "/src.txt", "destination": "/dst.txt"})
+    assert res["ok"] and res["verified"] is True and res["size"] == 7
+    assert [r.method for r in nc.requests] == ["PROPFIND", "GET", "PUT", "GET"]  # find -> read -> write -> read-back
+    put = nc.requests[2]
+    assert put.headers.get("Content-Type") == "text/plain" and put.content == b"copy me"
+
+
+def test_file_copy_rejects_folder_source(nc, call):
+    def h(req):
+        if req.method == "PROPFIND":
+            return multistatus([(f"{FILES}/Docs", '<d:resourcetype><d:collection/></d:resourcetype>')])
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_file_copy", {"source": "/Docs", "destination": "/Docs2"})
+    assert res["ok"] is False and "files only" in res["error"]
+    assert [r.method for r in nc.requests] == ["PROPFIND"]  # no GET/PUT
+
+
+def test_file_copy_destination_exists_without_overwrite(nc, call):
+    def h(req):
+        p = req.url.path
+        if req.method == "PROPFIND":
+            if p == f"{FILES}/src.txt":
+                return multistatus([(f"{FILES}/src.txt", '<d:resourcetype/>')])
+            return multistatus([(p, '<d:resourcetype/>')])  # destination exists
+        if req.method == "GET":
+            return httpx.Response(200, content=b"data")
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_file_copy", {"source": "/src.txt", "destination": "/dst.txt", "overwrite": False})
+    assert res["ok"] is False and "destination exists" in res["error"]
+    assert not any(r.method == "PUT" for r in nc.requests)
+
+
+def test_file_copy_rejects_traversal_and_same_path_before_request(nc, call):
+    nc.handler = lambda req: httpx.Response(500, text="must not be called")
+    res = call("nc_file_copy", {"source": "/../x.txt", "destination": "/y.txt"})
+    assert res["ok"] is False and nc.requests == []
+    res = call("nc_file_copy", {"source": "/a.txt", "destination": "/a.txt"})
+    assert res["ok"] is False and nc.requests == []
+
+
+def test_file_copy_readback_mismatch_fails(nc, call):
+    def h(req):
+        p = req.url.path
+        if req.method == "PROPFIND":
+            return multistatus([(f"{FILES}/src.txt", '<d:resourcetype/>')]) if p == f"{FILES}/src.txt" else httpx.Response(404, text="nf")
+        if req.method == "GET" and p == f"{FILES}/src.txt":
+            return httpx.Response(200, content=b"original")
+        if req.method == "PUT":
+            return httpx.Response(201)
+        if req.method == "GET":  # verification read-back returns tampered bytes
+            return httpx.Response(200, content=b"tampered")
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_file_copy", {"source": "/src.txt", "destination": "/dst.txt"})
+    assert res["ok"] is False and "verification" in res["error"]
+    assert any(r.method == "PUT" for r in nc.requests)
+
+
 def test_move_423_fallback_order_put_before_delete(nc, call):
     state = {f"{FILES}/src.txt": b"data123"}
 

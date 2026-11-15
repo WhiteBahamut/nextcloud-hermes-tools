@@ -132,6 +132,31 @@ def _move(args):
     return client.ok(source=source, destination=destination, verified=True, fallback=used_fallback)
 
 
+def _copy(args):
+    source = args["source"]
+    destination = args["destination"]
+    if source == destination:
+        return client.err("source and destination are the same path", source=source, destination=destination)
+    overwrite = args.get("overwrite", True)
+    src_href = client.files_dav(source)
+    dst_href = client.files_dav(destination)
+    entries = parse_multistatus(client.propfind(src_href, depth=0, body=PROPFIND_ALL).text)
+    if not entries:
+        return client.err(f"source not found: {source}", source=source)
+    props = entries[0]["props"]
+    if props.get("resourcetype") is True:
+        return client.err("nc_file_copy copies files only — use nc_file_move for folders", source=source)
+    content_type = props.get("getcontenttype") or ""
+    data = client.dav_get(src_href).content
+    if not overwrite and client.verify_exists(dst_href):
+        return client.err("destination exists (pass overwrite=true)", source=source, destination=destination)
+    try:
+        client.put_verified(dst_href, data, content_type=content_type)
+    except client.NcError as exc:
+        return client.err(exc.message, status=exc.status, source=source, destination=destination)
+    return client.ok(source=source, destination=destination, size=len(data), verified=True)
+
+
 def _delete(args):
     path = args["path"]
     href = client.files_dav(path)
@@ -147,5 +172,6 @@ TOOLS = [
     ("nc_file_put", schemas.NC_FILE_PUT, client.tool(_put)),
     ("nc_file_mkdir", schemas.NC_FILE_MKDIR, client.tool(_mkdir)),
     ("nc_file_move", schemas.NC_FILE_MOVE, client.tool(_move)),
+    ("nc_file_copy", schemas.NC_FILE_COPY, client.tool(_copy)),
     ("nc_file_delete", schemas.NC_FILE_DELETE, client.tool(_delete)),
 ]
