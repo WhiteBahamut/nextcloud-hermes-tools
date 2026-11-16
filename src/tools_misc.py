@@ -207,42 +207,47 @@ def _comments_list(base: str, file_id: str):
     return out
 
 
-def _comments(args):
-    action = str(args.get("action") or "list")
+def _comment_list(args):
     file_id = _resolve_file_id(args)
     base = f"{_dav_base()}/comments/files/{file_id}"
-    if action == "list":
-        comments = _comments_list(base, file_id)
-        return client.ok(file_id=file_id, count=len(comments), comments=comments)
-    if action == "add":
-        message = args.get("message") or ""
-        if not message:
-            return client.err("message required")
-        # NC 35 CommentsPlugin::createComment() is JSON-only: it throws
-        # UnsupportedMediaType (415) for XML propertyupdate bodies.
-        resp = client.request(
-            "POST", base + "/",
-            json_body={"actorType": "users", "message": message, "verb": "comment"},
-        )
-        if resp.status_code not in (200, 201, 204):
-            raise client.NcError(resp.status_code, client.resp_message(resp))
-        location = resp.headers.get("Content-Location", "")
-        comment_id = client.redact(location.rstrip("/").rsplit("/", 1)[-1]) if location else ""
-        msgs = [c["message"] for c in _comments_list(base, file_id)]
-        if message not in msgs:
-            return client.err("add verification failed: message not in read-back", file_id=file_id)
-        return client.ok(file_id=file_id, added=True, verified=True,
-                         **({"comment_id": comment_id} if comment_id else {}))
-    if action == "delete":
-        cid = int(args.get("comment_id") or 0)
-        if not cid:
-            return client.err("comment_id required")
-        client.require(client.dav_delete(f"{base}/{cid}"), (200, 204))
-        ids = [str(c["id"]) for c in _comments_list(base, file_id) if c["id"]]
-        if str(cid) in ids:
-            return client.err(f"delete verification failed: comment {cid} still present", file_id=file_id)
-        return client.ok(file_id=file_id, comment_id=cid, deleted=True, verified=True)
-    return client.err(f"unknown action {action!r}")
+    comments = _comments_list(base, file_id)
+    return client.ok(file_id=file_id, count=len(comments), comments=comments)
+
+
+def _comment_add(args):
+    file_id = _resolve_file_id(args)
+    base = f"{_dav_base()}/comments/files/{file_id}"
+    message = args.get("message") or ""
+    if not message:
+        return client.err("message required")
+    # NC 35 CommentsPlugin::createComment() is JSON-only: it throws
+    # UnsupportedMediaType (415) for XML propertyupdate bodies.
+    resp = client.request(
+        "POST", base + "/",
+        json_body={"actorType": "users", "message": message, "verb": "comment"},
+    )
+    if resp.status_code not in (200, 201, 204):
+        raise client.NcError(resp.status_code, client.resp_message(resp))
+    location = resp.headers.get("Content-Location", "")
+    comment_id = client.redact(location.rstrip("/").rsplit("/", 1)[-1]) if location else ""
+    msgs = [c["message"] for c in _comments_list(base, file_id)]
+    if message not in msgs:
+        return client.err("add verification failed: message not in read-back", file_id=file_id)
+    return client.ok(file_id=file_id, added=True, verified=True,
+                     **({"comment_id": comment_id} if comment_id else {}))
+
+
+def _comment_delete(args):
+    file_id = _resolve_file_id(args)
+    base = f"{_dav_base()}/comments/files/{file_id}"
+    cid = int(args.get("comment_id") or 0)
+    if not cid:
+        return client.err("comment_id required")
+    client.require(client.dav_delete(f"{base}/{cid}"), (200, 204))
+    ids = [str(c["id"]) for c in _comments_list(base, file_id) if c["id"]]
+    if str(cid) in ids:
+        return client.err(f"delete verification failed: comment {cid} still present", file_id=file_id)
+    return client.ok(file_id=file_id, comment_id=cid, deleted=True, verified=True)
 
 
 # --- files_lock (force-unlock) ------------------------------------------------------
@@ -341,7 +346,9 @@ TOOLS = [
     ("nc_trash_list", schemas.NC_TRASH_LIST, client.tool(_trash_list)),
     ("nc_trash_restore", schemas.NC_TRASH_RESTORE, client.tool(_trash_restore)),
     ("nc_trash_empty", schemas.NC_TRASH_EMPTY, client.tool(_trash_empty)),
-    ("nc_comments", schemas.NC_COMMENTS, client.tool(_comments)),
+    ("nc_comment_list", schemas.NC_COMMENT_LIST, client.tool(_comment_list)),
+    ("nc_comment_add", schemas.NC_COMMENT_ADD, client.tool(_comment_add)),
+    ("nc_comment_delete", schemas.NC_COMMENT_DELETE, client.tool(_comment_delete)),
     ("nc_ocs", schemas.NC_OCS, client.tool(_ocs)),
     ("nc_file_unlock", schemas.NC_FILE_UNLOCK, client.tool(_file_unlock)),
     ("nc_version", schemas.NC_VERSION, client.tool(_version)),

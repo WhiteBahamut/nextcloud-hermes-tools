@@ -1,4 +1,4 @@
-"""JSON-Schema definitions for all 50 nextcloud-tools.
+"""JSON-Schema definitions for all 52 nextcloud-tools.
 
 One dict per tool: ``{"description": ..., "parameters": {"type": "object", ...}}``.
 Descriptions teach the model when to call each tool.
@@ -400,15 +400,30 @@ NC_TRASH_EMPTY = _s(
     "Empty the entire trashbin.",
     {},
 )
-NC_COMMENTS = _s(
-    "List, add or delete comments on a file (give `file_id` or `path`).",
+NC_COMMENT_LIST = _s(
+    "List comments on a file (give `file_id` or `path`).",
     {
-        "action": {"type": "string", "enum": ["list", "add", "delete"], "default": "list", "description": "'list' (read-only), 'add' (gated write) or 'delete' (destructive)."},
-        "file_id": {"type": "string", "default": "", "description": "Numeric file id."},
+        "file_id": {"type": "string", "default": "", "description": "Numeric file id; skips the path->oc:fileid PROPFIND."},
         "path": {**PATH, "default": ""},
-        "message": {"type": "string", "default": "", "description": "Comment text (action=add)."},
-        "comment_id": {"type": "integer", "default": 0, "description": "Comment id (action=delete)."},
     },
+)
+NC_COMMENT_ADD = _s(
+    "Add a comment to a file (give `file_id` or `path`).",
+    {
+        "file_id": {"type": "string", "default": "", "description": "Numeric file id; skips the path->oc:fileid PROPFIND."},
+        "path": {**PATH, "default": ""},
+        "message": {"type": "string", "description": "Comment text (required, non-empty)."},
+    },
+    ["message"],
+)
+NC_COMMENT_DELETE = _s(
+    "Delete a comment from a file (give `file_id` or `path`).",
+    {
+        "file_id": {"type": "string", "default": "", "description": "Numeric file id; skips the path->oc:fileid PROPFIND."},
+        "path": {**PATH, "default": ""},
+        "comment_id": {"type": "integer", "description": "Comment id, as returned by nc_comment_list."},
+    },
+    ["comment_id"],
 )
 NC_OCS = _s(
     "Call any unmapped OCS v2 endpoint under /ocs/v2.php/ directly (method, path, query params, form data).",

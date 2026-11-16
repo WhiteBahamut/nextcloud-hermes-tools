@@ -123,8 +123,8 @@ def test_nc_ocs_encoded_traversal_rejected_before_request(nc, call):
     assert nc.requests == []
 
 
-def test_comments_file_id_must_be_numeric(nc, call):
-    res = call("nc_comments", {"action": "list", "file_id": "12/../../x"})
+def test_comment_list_file_id_must_be_numeric(nc, call):
+    res = call("nc_comment_list", {"file_id": "12/../../x"})
     assert res["ok"] is False and res.get("status") == 400
     assert nc.requests == []
 

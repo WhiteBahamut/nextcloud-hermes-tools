@@ -136,9 +136,9 @@ def test_register_logs_tool_count_and_applies_info_level(caplog):
     with caplog.at_level(logging.DEBUG, logger=PKG_LOGGER):
         ctx, _ = conftest.make_caller({"log_level": "INFO"})
         assert logging.getLogger(PKG_LOGGER).level == logging.INFO
-    assert len(ctx.tools) == 50
+    assert len(ctx.tools) == 52
     assert any(
-        r.levelno == logging.INFO and "registered 50 tools" in r.getMessage() and "0 disabled" in r.getMessage()
+        r.levelno == logging.INFO and "registered 52 tools" in r.getMessage() and "0 disabled" in r.getMessage()
         for r in caplog.records
     )
 

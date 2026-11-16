@@ -3,9 +3,9 @@ import pytest
 from nextcloud_tools import dashboard_store
 
 
-def test_list_tool_names_returns_50_in_manifest_order():
+def test_list_tool_names_returns_52_in_manifest_order():
     names = dashboard_store.list_tool_names()
-    assert len(names) == 50
+    assert len(names) == 52
     assert names[0] == "nc_file_list"
     assert names[-1] == "nc_version"
     assert all(n.startswith("nc_") for n in names)
@@ -86,12 +86,14 @@ def test_classify_gate_static_labels():
     assert dashboard_store.classify_gate("nc_file_list") == "read"
     assert dashboard_store.classify_gate("nc_file_put") == "write"
     assert dashboard_store.classify_gate("nc_file_delete") == "destructive"
-    assert dashboard_store.classify_gate("nc_comments") == "mixed"
+    assert dashboard_store.classify_gate("nc_comment_list") == "read"
+    assert dashboard_store.classify_gate("nc_comment_add") == "write"
+    assert dashboard_store.classify_gate("nc_comment_delete") == "destructive"
     assert dashboard_store.classify_gate("nc_ocs") == "mixed"
 
 
 def test_classify_gate_covers_every_manifest_tool():
-    mixed = {"nc_comments", "nc_ocs"}
+    mixed = {"nc_ocs"}
     for name in dashboard_store.list_tool_names():
         gate = dashboard_store.classify_gate(name)
         assert gate in ("read", "write", "destructive", "mixed"), name

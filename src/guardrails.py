@@ -1,8 +1,7 @@
 """``pre_tool_call`` guardrail hook.
 
-Classification via three frozensets (``nc_comments`` dispatches on
-``args["action"]``; ``nc_ocs`` gates GET as read, DELETE as destructive and other
-non-GET methods as writes):
+Classification via three frozensets (``nc_ocs`` gates GET as read, DELETE as
+destructive and other non-GET methods as writes):
 
 - READ_ONLY -> ``None`` (normal approval policy applies)
 - WRITES -> ``{"action": "approve", ...}`` — escalates to the human approval gate
@@ -17,7 +16,7 @@ return so no secret leaks into the prompt.
 Settings ``ungated_tools`` exempts the listed nc_* tools from the approve gate:
 for them ``guard`` returns ``None`` (no approval prompt). ``hard_block_destructive``
 still hard-blocks destructive tools in that list. The exemption is per tool, so
-arg-dispatched tools (``nc_comments``, ``nc_ocs``) are exempted for ALL actions.
+the arg-dispatched tool (``nc_ocs``) is exempted for ALL methods.
 
 
 The hook NEVER raises (a raise fails closed and would block every tool): on any
@@ -38,7 +37,7 @@ READ_ONLY = frozenset({
     "nc_file_list", "nc_file_get", "nc_search", "nc_file_search", "nc_share_list",
     "nc_talk_rooms", "nc_talk_messages", "nc_cal_list", "nc_cal_list_calendars", "nc_task_list",
     "nc_contact_list", "nc_contact_list_books", "nc_contact_search", "nc_contact_get", "nc_note_list",
-    "nc_note_get", "nc_activity", "nc_notifications", "nc_tag_list", "nc_trash_list", "nc_version",
+    "nc_note_get", "nc_activity", "nc_notifications", "nc_tag_list", "nc_trash_list", "nc_comment_list", "nc_version",
 })
 
 WRITES = frozenset({
@@ -46,12 +45,12 @@ WRITES = frozenset({
     "nc_talk_send", "nc_talk_react", "nc_cal_create", "nc_cal_edit",
     "nc_task_create", "nc_task_complete", "nc_task_reopen", "nc_contact_create", "nc_contact_edit",
     "nc_note_create", "nc_note_edit", "nc_tag_assign", "nc_tag_unassign",
-    "nc_trash_restore", "nc_file_unlock",
+    "nc_trash_restore", "nc_comment_add", "nc_file_unlock",
 })
 
 DESTRUCTIVE = frozenset({
     "nc_file_delete", "nc_share_delete", "nc_talk_delete", "nc_cal_delete",
-    "nc_note_delete", "nc_trash_empty",
+    "nc_note_delete", "nc_trash_empty", "nc_comment_delete",
 })
 
 _BRIEF_KEYS = ("path", "source", "destination", "token", "trash_path", "uid", "id", "term")
@@ -93,17 +92,16 @@ _SUMMARIES = {
     "nc_tag_unassign": "remove tag '{tag}' from '{path}'",
     "nc_trash_restore": "restore trashbin entry '{trash_path}' to its original location",
     "nc_trash_empty": "empty the ENTIRE trashbin",
+    "nc_comment_add": "add comment '{message}' on file {file_target}",
+    "nc_comment_delete": "delete comment id {comment_id} on file {file_target}",
     "nc_file_unlock": "force-unlock file '{file_target}' (remove the files_lock lock)",
 }
 
-# Arg-dispatched tools: template chosen via args["action"] / args["method"],
-# exactly like _classify. nc_ocs "*" is the fallback for any non-GET method;
-# nc_comments' {file_target} is computed in _describe as file_id else path.
+# Arg-dispatched tool: template chosen via args["method"], exactly like
+# _classify; nc_ocs "*" is the fallback for any non-GET method. {file_target}
+# for the comment tools and nc_file_unlock is computed in _describe as
+# file_id else path.
 _ACTION_SUMMARIES = {
-    "nc_comments": {
-        "add": "add comment '{message}' on file {file_target}",
-        "delete": "delete comment id {comment_id} on file {file_target}",
-    },
     "nc_ocs": {
         "DELETE": "DELETE /ocs/v2.php/{path} (destructive)",
         "*": "{method} /ocs/v2.php/{path}",
@@ -140,10 +138,7 @@ def _describe(name: str, args) -> str:
     a = args or {}
     template = _SUMMARIES.get(name)
     extra = {}
-    if name == "nc_comments":
-        template = _ACTION_SUMMARIES["nc_comments"].get(str(a.get("action") or "list"))
-        extra["file_target"] = a.get("file_id") or a.get("path") or ""
-    elif name == "nc_file_unlock":
+    if name in ("nc_comment_add", "nc_comment_delete", "nc_file_unlock"):
         extra["file_target"] = a.get("file_id") or a.get("path") or ""
     elif name == "nc_ocs":
         method = str(a.get("method") or "GET").upper()
@@ -200,11 +195,6 @@ def _classify(tool_name: str, args) -> str | None:
         return "write"
     if tool_name in DESTRUCTIVE:
         return "destructive"
-    if tool_name == "nc_comments":
-        action = str((args or {}).get("action") or "list")
-        if action == "list":
-            return "read"
-        return "destructive" if action == "delete" else "write"
     if tool_name == "nc_ocs":
         m = str((args or {}).get("method") or "GET").upper()
         if m == "GET":

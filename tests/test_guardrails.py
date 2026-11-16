@@ -22,9 +22,9 @@ def test_guard_matrix():
     assert g("nc_task_reopen", {"uid": "x"})["rule_key"] == "nc-write"
     d = g("nc_file_delete", {"path": "/a.txt"})
     assert d["action"] == "approve" and d["rule_key"] == "nc-destructive"
-    assert g("nc_comments", {"action": "list", "file_id": "1"}) is None
-    assert g("nc_comments", {"action": "add", "file_id": "1", "message": "m"})["rule_key"] == "nc-write"
-    assert g("nc_comments", {"action": "delete", "file_id": "1", "comment_id": 2})["rule_key"] == "nc-destructive"
+    assert g("nc_comment_list", {"file_id": "1"}) is None
+    assert g("nc_comment_add", {"file_id": "1", "message": "m"})["rule_key"] == "nc-write"
+    assert g("nc_comment_delete", {"file_id": "1", "comment_id": 2})["rule_key"] == "nc-destructive"
     assert g("nc_ocs", {"method": "GET", "path": "x"}) is None
     assert g("nc_ocs", {"method": "POST", "path": "x"})["action"] == "approve"
     d2 = g("nc_cal_delete", {"calendar": "personal", "uid": "8f6cf60a-x"})
@@ -151,13 +151,13 @@ def test_guard_summary_covers_every_gated_tool(name):
 
 def test_guard_summary_arg_dispatch():
     g = guardrails.guard
-    add = g("nc_comments", {"action": "add", "file_id": "1", "message": "m"})
-    assert add["rule_key"] == "nc-write" and "add comment 'm' on file 1 (nc_comments)" in add["message"]
-    add_path = g("nc_comments", {"action": "add", "path": "/Docs/a.txt", "message": "m"})
+    add = g("nc_comment_add", {"file_id": "1", "message": "m"})
+    assert add["rule_key"] == "nc-write" and "add comment 'm' on file 1 (nc_comment_add)" in add["message"]
+    add_path = g("nc_comment_add", {"path": "/Docs/a.txt", "message": "m"})
     assert "on file /Docs/a.txt" in add_path["message"]  # path used when file_id absent
-    dele = g("nc_comments", {"action": "delete", "file_id": "1", "comment_id": 2})
+    dele = g("nc_comment_delete", {"file_id": "1", "comment_id": 2})
     assert dele["rule_key"] == "nc-destructive"
-    assert "delete comment id 2 on file 1 (nc_comments)" in dele["message"]
+    assert "delete comment id 2 on file 1 (nc_comment_delete)" in dele["message"]
     post = g("nc_ocs", {"method": "POST", "path": "x"})
     assert "POST /ocs/v2.php/x (nc_ocs)" in post["message"]
     react = g("nc_talk_react", {"token": "t", "message_id": 5, "emoji": "👍", "react": False})
@@ -185,8 +185,8 @@ def test_guard_makes_zero_network_requests(nc):
             "start": "st", "end": "en", "book": "b", "fn": "f", "title": "ti", "tag": "tg"}
     for name in sorted(guardrails.WRITES | guardrails.DESTRUCTIVE):
         guardrails.guard(name, args)
-    guardrails.guard("nc_comments", {"action": "add", "file_id": "1", "message": "m"})
-    guardrails.guard("nc_comments", {"action": "delete", "file_id": "1", "comment_id": 2})
+    guardrails.guard("nc_comment_add", {"file_id": "1", "message": "m"})
+    guardrails.guard("nc_comment_delete", {"file_id": "1", "comment_id": 2})
     guardrails.guard("nc_ocs", {"method": "POST", "path": "x"})
     assert nc.requests == []
 

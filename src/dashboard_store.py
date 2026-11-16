@@ -114,8 +114,8 @@ def set_tool_guarded(config: dict, name: str, guarded: bool) -> list[str]:
 def classify_gate(name: str) -> str:
     """Static gate label: 'read' | 'write' | 'destructive' | 'mixed'.
 
-    nc_comments / nc_ocs gate on their args (action / method), so anything not
-    in the three static sets reports 'mixed'.
+    nc_ocs gates on its method arg, so anything not in the three static
+    sets reports 'mixed'.
     """
     from .guardrails import DESTRUCTIVE, READ_ONLY, WRITES
 

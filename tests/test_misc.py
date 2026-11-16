@@ -66,7 +66,7 @@ def test_trash_restore_moves_with_overwrite_f(nc, call):
     assert restored["dest"] == f"https://nc.example{FILES_DAV}/Docs/a.txt"
 
 
-def test_comments_resolves_path_to_fileid(nc, call):
+def test_comment_list_resolves_path_to_fileid(nc, call):
     def h(req):
         p = req.url.path
         if req.method == "PROPFIND" and p.startswith(FILES_DAV):
@@ -80,12 +80,12 @@ def test_comments_resolves_path_to_fileid(nc, call):
         return httpx.Response(404, text="nf")
 
     nc.handler = h
-    res = call("nc_comments", {"action": "list", "path": "/a.txt"})
+    res = call("nc_comment_list", {"path": "/a.txt"})
     assert res["ok"] and res["file_id"] == "4242"
     assert res["comments"][0]["message"] == "hi there" and res["comments"][0]["actor"] == "bot"
 
 
-def test_comments_propfind_requests_oc_props(nc, call):
+def test_comment_list_propfind_requests_oc_props(nc, call):
     def h(req):
         p = req.url.path
         if req.method == "PROPFIND" and p.startswith("/remote.php/dav/comments/files/4242"):
@@ -97,7 +97,7 @@ def test_comments_propfind_requests_oc_props(nc, call):
         return httpx.Response(404, text="nf")
 
     nc.handler = h
-    res = call("nc_comments", {"action": "list", "file_id": "4242"})
+    res = call("nc_comment_list", {"file_id": "4242"})
     assert res["ok"]
     assert res["comments"][0]["message"] == "hi"
     assert res["comments"][0]["actor"] == "bot"
@@ -110,7 +110,7 @@ def test_comments_propfind_requests_oc_props(nc, call):
         assert tag in bodies[0]
 
 
-def test_comments_add_posts_json_and_verifies(nc, call):
+def test_comment_add_posts_json_and_verifies(nc, call):
     posted = {}
 
     def h(req):
@@ -131,25 +131,25 @@ def test_comments_add_posts_json_and_verifies(nc, call):
         return httpx.Response(404, text="nf")
 
     nc.handler = h
-    res = call("nc_comments", {"action": "add", "file_id": "4242", "message": "hello"})
+    res = call("nc_comment_add", {"file_id": "4242", "message": "hello"})
     assert res["ok"] and res["added"] and res["verified"] and res["comment_id"] == "10207"
     assert posted["content_type"].startswith("application/json")
     assert json.loads(posted["body"]) == {"actorType": "users", "message": "hello", "verb": "comment"}
     assert all(b"propertyupdate" not in r.content for r in nc.requests)
 
 
-def test_comments_add_server_error_returns_err_json(nc, call):
+def test_comment_add_server_error_returns_err_json(nc, call):
     def h(req):
         if req.method == "POST" and "/comments/files/4242" in req.url.path:
             return httpx.Response(415, text="Unsupported Media Type")
         return httpx.Response(404, text="nf")
 
     nc.handler = h
-    res = call("nc_comments", {"action": "add", "file_id": "4242", "message": "hello"})
+    res = call("nc_comment_add", {"file_id": "4242", "message": "hello"})
     assert res["ok"] is False and "415" in res["error"]
 
 
-def test_comments_add_readback_mismatch_returns_err(nc, call):
+def test_comment_add_readback_mismatch_returns_err(nc, call):
     def h(req):
         p = req.url.path
         if req.method == "POST" and p == "/remote.php/dav/comments/files/4242/":
@@ -166,7 +166,45 @@ def test_comments_add_readback_mismatch_returns_err(nc, call):
         return httpx.Response(404, text="nf")
 
     nc.handler = h
-    res = call("nc_comments", {"action": "add", "file_id": "4242", "message": "hello"})
+    res = call("nc_comment_add", {"file_id": "4242", "message": "hello"})
+    assert res["ok"] is False and "verification failed" in res["error"]
+
+
+def test_comment_delete_verifies_gone(nc, call):
+    def h(req):
+        p = req.url.path
+        if req.method == "DELETE" and p == "/remote.php/dav/comments/files/4242/7":
+            return httpx.Response(204)
+        if req.method == "PROPFIND" and p.startswith("/remote.php/dav/comments/files/4242"):
+            return multistatus([
+                ("/remote.php/dav/comments/files/4242", ""),
+                ("/remote.php/dav/comments/files/4242/9",
+                 "<oc:id>9</oc:id><oc:message>other</oc:message>"),
+            ])
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_comment_delete", {"file_id": "4242", "comment_id": 7})
+    assert res["ok"] and res["deleted"] and res["verified"] and res["comment_id"] == 7
+    assert any(r.method == "DELETE" and r.url.path == "/remote.php/dav/comments/files/4242/7"
+               for r in nc.requests)
+
+
+def test_comment_delete_readback_mismatch_returns_err(nc, call):
+    def h(req):
+        p = req.url.path
+        if req.method == "DELETE" and p == "/remote.php/dav/comments/files/4242/7":
+            return httpx.Response(204)
+        if req.method == "PROPFIND" and p.startswith("/remote.php/dav/comments/files/4242"):
+            return multistatus([
+                ("/remote.php/dav/comments/files/4242", ""),
+                ("/remote.php/dav/comments/files/4242/7",
+                 "<oc:id>7</oc:id><oc:message>still here</oc:message>"),
+            ])
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_comment_delete", {"file_id": "4242", "comment_id": 7})
     assert res["ok"] is False and "verification failed" in res["error"]
 
 

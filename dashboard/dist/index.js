@@ -47,7 +47,7 @@
     ["notifications", "nc_notifications", "Notifications"],
     ["tags", "nc_tag_", "Tags"],
     ["trash", "nc_trash_", "Trashbin"],
-    ["comments", "nc_comments", "Comments"],
+    ["comments", "nc_comment", "Comments"],
     ["ocs", "nc_ocs", "OCS"]
   ];
 
