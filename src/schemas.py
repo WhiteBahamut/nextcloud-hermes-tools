@@ -25,7 +25,7 @@ ISO_DT = r"^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2}
 # --- files (WebDAV) ----------------------------------------------------------
 
 NC_FILE_LIST = _s(
-    "List entries of a Nextcloud folder (WebDAV PROPFIND). depth 0 = the entry itself, 1 = direct children (default); recursive=true lists the whole subtree (Depth: infinity, cap with limit).",
+    "List entries of a folder: depth 0 = the entry itself, 1 (default) = direct children, recursive=true = the whole subtree.",
     {
         "path": {**PATH, "default": "/"},
         "depth": {"anyOf": [{"type": "integer", "enum": [0, 1]}, {"type": "string", "enum": ["0", "1", "infinity"]}], "default": 1, "description": "0 = the entry itself, 1 = direct children (default). Integer or legacy string form both accepted; 'infinity'/recursive=true = whole subtree."},
@@ -34,7 +34,7 @@ NC_FILE_LIST = _s(
     },
 )
 NC_FILE_GET = _s(
-    "Download a file. utf-8-decodable content comes back as `content`, binary as `content_base64` (unless raw=true, which forces base64). Content is capped at `max_bytes` bytes (default 100000, 0 = unlimited); when capped, the response has `truncated: true` and the full `size`.",
+    "Download a file. Text comes back as `content`, binary as `content_base64`; cap the size with max_bytes (default 100000, 0 = unlimited).",
     {
         "path": PATH,
         "raw": {"type": "boolean", "default": False, "description": "Force base64 even for text."},
@@ -43,7 +43,7 @@ NC_FILE_GET = _s(
     ["path"],
 )
 NC_FILE_PUT = _s(
-    "Create or overwrite a file (PUT + read-back sha256 verification). Use `content` for text, `content_base64` for binary (wins over content). Empty content is rejected unless `allow_empty=true` so an existing file is never clobbered to 0 bytes.",
+    "Create or overwrite a file. Use `content` for text or `content_base64` for binary; empty writes need allow_empty=true.",
     {
         "path": PATH,
         "content": {"type": "string", "default": "", "description": "Text content (utf-8)."},
@@ -54,12 +54,12 @@ NC_FILE_PUT = _s(
     ["path"],
 )
 NC_FILE_MKDIR = _s(
-    "Create a folder (MKCOL), verified by PROPFIND read-back.",
+    "Create a folder.",
     {"path": PATH},
     ["path"],
 )
 NC_FILE_MOVE = _s(
-    "Move or rename a file/folder (WebDAV MOVE; on 423 files_lock falls back to GET bytes -> PUT destination -> DELETE source). `destination` is the new FULL path, not a folder. Verified.",
+    "Move or rename a file or folder to a new full path (`destination`).",
     {
         "source": {**PATH, "description": "Current path."},
         "destination": {**PATH, "description": "New full path."},
@@ -69,7 +69,7 @@ NC_FILE_MOVE = _s(
 )
 
 NC_FILE_COPY = _s(
-    "Copy a file (GET source bytes -> PUT destination with sha256 read-back verification). Folders are not copied — use nc_file_move. `destination` is the new FULL path. Gated.",
+    "Copy a file to a new full path (`destination`). Folders are not copied — use nc_file_move.",
     {
         "source": {**PATH, "description": "Current path."},
         "destination": {**PATH, "description": "New full path."},
@@ -78,7 +78,7 @@ NC_FILE_COPY = _s(
     ["source", "destination"],
 )
 NC_FILE_DELETE = _s(
-    "Delete a file or folder (goes to the trashbin). DESTRUCTIVE — gated by the pre_tool_call hook; verified 404 afterwards.",
+    "Delete a file or folder (moves it to the trashbin).",
     {"path": PATH},
     ["path"],
 )
@@ -86,7 +86,7 @@ NC_FILE_DELETE = _s(
 # --- search ------------------------------------------------------------------
 
 NC_SEARCH = _s(
-    "Unified cross-app search (OCS search providers): files, fulltextsearch (matches INSIDE file content), talk-message, calendar, tasks, contacts, notes, ... A provider not installed on the server is reported as a per-provider error, never fails the whole call.",
+    "Search across apps (files, file contents, Talk, calendar, tasks, contacts, notes) with one term.",
     {
         "term": {"type": "string", "description": "Search term."},
         "providers": {
@@ -100,7 +100,7 @@ NC_SEARCH = _s(
     ["term"],
 )
 NC_FILE_SEARCH = _s(
-    "Filename search inside a folder subtree (PROPFIND Depth infinity + local case-insensitive filter; server-side DAV SEARCH is not implemented). Downloads the whole subtree — on large trees prefer nc_search with the files provider.",
+    "Search filenames inside a folder subtree (case-insensitive).",
     {
         "term": {"type": "string", "description": "Filename substring to match (case-insensitive)."},
         "path": {**PATH, "default": "/"},
@@ -112,11 +112,11 @@ NC_FILE_SEARCH = _s(
 # --- shares ------------------------------------------------------------------
 
 NC_SHARE_LIST = _s(
-    "List shares, optionally filtered to one path. shareType 0 = user/group share, 3 = public link.",
+    "List shares, optionally filtered to one path.",
     {"path": {**PATH, "default": ""}},
 )
 NC_SHARE_CREATE = _s(
-    "Create a share (default: user/group share, permissions 1 = read-only). Verified by read-back. Gated by the approval hook.",
+    "Share a file or folder with a user/group (share_type 0) or as a public link (share_type 3).",
     {
         "path": PATH,
         "share_with": {"type": "string", "description": "User or group name (shareType 0)."},
@@ -127,13 +127,13 @@ NC_SHARE_CREATE = _s(
     ["path", "share_with"],
 )
 NC_SHARE_DELETE = _s(
-    "Delete a share by id. DESTRUCTIVE — gated; verified 404 afterwards.",
+    "Delete a share by id.",
     {"id": {"type": "integer", "description": "Share id (from nc_share_list)."}},
     ["id"],
 )
 
 NC_SHARE_EDIT = _s(
-    "Edit an existing share (PUT /ocs/v2.php/apps/files_sharing/api/v1/shares/{id}, form-encoded; only provided fields are changed). For public links (shareType 3) password/expire_date apply. Verified by read-back GET. Gated.",
+    "Change an existing share: permissions, and for public links also password, expiry or note.",
     {
         "id": {"type": "integer", "description": "Share id (from nc_share_list)."},
         "permissions": {"type": "integer", "description": "Permission bitmask; 1 = read-only, 31 = all."},
@@ -147,11 +147,11 @@ NC_SHARE_EDIT = _s(
 # --- talk --------------------------------------------------------------------
 
 NC_TALK_ROOMS = _s(
-    "List Talk rooms. 1:1 DMs are excluded unless settings talk_include_dms; tokens listed in talk_skip_tokens are always dropped (e.g. the gateway-polled DM — never double-handle).",
+    "List Talk rooms (1:1 DMs only when talk_include_dms is enabled).",
     {"limit": {"type": "integer", "default": 50, "description": "Max rooms returned."}},
 )
 NC_TALK_MESSAGES = _s(
-    "Read recent messages of a room (always sent with lookIntoFuture=0 — the gateway polls DMs separately). Paginate with last_known_message_id.",
+    "Read recent messages of a Talk room; paginate with last_known_message_id.",
     {
         "token": {"type": "string", "description": "Room token."},
         "limit": {"type": "integer", "default": 50, "description": "Max messages returned."},
@@ -160,7 +160,7 @@ NC_TALK_MESSAGES = _s(
     ["token"],
 )
 NC_TALK_SEND = _s(
-    "Send a message to a Talk room; verified by chat read-back containing the new message id. Gated by the approval hook.",
+    "Send a message to a Talk room, optionally as a reply.",
     {
         "token": {"type": "string", "description": "Room token (from nc_talk_rooms)."},
         "message": {"type": "string", "description": "Message text to send."},
@@ -169,12 +169,12 @@ NC_TALK_SEND = _s(
     ["token", "message"],
 )
 NC_TALK_DELETE = _s(
-    "Delete a Talk message. DESTRUCTIVE — gated.",
+    "Delete a message from a Talk room.",
     {"token": {"type": "string", "description": "Room token."}, "message_id": {"type": "integer", "description": "Message id to delete."}},
     ["token", "message_id"],
 )
 NC_TALK_REACT = _s(
-    "Add (react=true) or remove (react=false) an emoji reaction on a message. Writes are gated.",
+    "Add or remove an emoji reaction on a Talk message.",
     {
         "token": {"type": "string", "description": "Room token."},
         "message_id": {"type": "integer", "description": "Message id to react on."},
@@ -187,7 +187,7 @@ NC_TALK_REACT = _s(
 # --- calendar + tasks ----------------------------------------------------------
 
 NC_CAL_LIST = _s(
-    "List calendar events in a time range (CalDAV REPORT time-range; recurring events expanded client-side, capped at 500 occurrences). Defaults: from = now-30d, to = now+90d. Defaults from/to are computed in the server_timezone setting (empty = server timezone, UTC fallback).",
+    "List calendar events in a time range (default: last 30 days to +90 days); recurring events are expanded.",
     {
         "calendar": {**CAL, "default": "personal"},
         "from": {"type": "string", "default": "", "pattern": ISO_DT,
@@ -201,11 +201,11 @@ NC_CAL_LIST = _s(
 )
 
 NC_CAL_LIST_CALENDARS = _s(
-    "List the user's calendars (DAV directory name + display name; PROPFIND Depth 1 on the calendar home). Use `name` as the `calendar` argument of nc_cal_*/nc_task_* tools.",
+    "List the user's calendars; use a directory `name` as the `calendar` argument of nc_cal_*/nc_task_*.",
     {},
 )
 NC_CAL_CREATE = _s(
-    "Create a calendar event (PUT new .ics, verified read-back). Gated. start/end ISO 8601 (or YYYY-MM-DD when all_day); keep one offset style per event (all Z or all ±HH:MM) — times are stored exactly as given, never converted. rrule e.g. 'FREQ=WEEKLY;BYDAY=MO,WE;COUNT=10'. reminder is an optional ISO 8601 duration (e.g. '-PT15M') written as a VALARM TRIGGER relative to start.",
+    "Create a calendar event: title, start/end, optional description, location, recurrence (rrule), reminder.",
     {
         "calendar": {**CAL, "default": "personal"},
         "summary": {"type": "string", "description": "Event title."},
@@ -224,7 +224,7 @@ NC_CAL_CREATE = _s(
     ["summary", "start", "end"],
 )
 NC_CAL_EDIT = _s(
-    "Edit an existing event by UID (href+etag resolved via REPORT, PUT with If-Match, verified read-back). Only provided fields are changed. Gated. reminder sets/replaces the VALARM TRIGGER (ISO 8601 duration, e.g. '-PT15M'); 0, null or '' removes it.",
+    "Edit an existing event by UID; only the fields you pass are changed.",
     {
         "calendar": CAL,
         "uid": {"type": "string", "description": "VEVENT UID."},
@@ -244,12 +244,12 @@ NC_CAL_EDIT = _s(
     ["calendar", "uid"],
 )
 NC_CAL_DELETE = _s(
-    "Delete a calendar event by UID (DELETE with If-Match). DESTRUCTIVE — gated.",
+    "Delete a calendar event by UID.",
     {"calendar": CAL, "uid": {"type": "string", "description": "VEVENT UID as returned by nc_cal_list."}},
     ["calendar", "uid"],
 )
 NC_TASK_LIST = _s(
-    "List tasks (VTODO) of a calendar (default 'tasks'). COMPLETED tasks are included by default (limit caps the returned list only); pass include_completed=false to hide them. Every successful response includes stats {total, open, closed} counted over ALL tasks in the calendar (closed = STATUS COMPLETED, open = everything else), independent of include_completed/limit; count = number of returned tasks.",
+    "List tasks of a calendar (default 'tasks'), including completed ones.",
     {
         "calendar": {**CAL, "default": "tasks"},
         "include_completed": {"type": "boolean", "default": True, "description": "Include COMPLETED tasks (default true)."},
@@ -257,7 +257,7 @@ NC_TASK_LIST = _s(
     },
 )
 NC_TASK_CREATE = _s(
-    "Create a task (VTODO; PUT + verified read-back). Initial status defaults to NEEDS-ACTION (open); pass status to set it (COMPLETED also sets COMPLETED timestamp and PERCENT-COMPLETE:100). Gated.",
+    "Create a task with a title and optional due date, priority, description and status.",
     {
         "calendar": {**CAL, "default": "tasks"},
         "summary": {"type": "string", "description": "Task title."},
@@ -271,12 +271,12 @@ NC_TASK_CREATE = _s(
     ["summary"],
 )
 NC_TASK_COMPLETE = _s(
-    "Mark a task COMPLETED (sets STATUS:COMPLETED + COMPLETED timestamp, PUT If-Match, verified). Gated.",
+    "Mark a task as completed.",
     {"calendar": {**CAL, "default": "tasks"}, "uid": {"type": "string", "description": "VTODO UID as returned by nc_task_list."}},
     ["uid"],
 )
 NC_TASK_REOPEN = _s(
-    "Reopen a completed task: STATUS:NEEDS-ACTION, COMPLETED removed, PERCENT-COMPLETE:0 (href+etag via REPORT, PUT If-Match, verified read-back). Gated.",
+    "Reopen a completed task.",
     {"calendar": {**CAL, "default": "tasks"}, "uid": {"type": "string", "description": "VTODO UID as returned by nc_task_list."}},
     ["uid"],
 )
@@ -284,26 +284,26 @@ NC_TASK_REOPEN = _s(
 # --- contacts ------------------------------------------------------------------
 
 NC_CONTACT_LIST = _s(
-    "List contacts of an address book (CardDAV PROPFIND Depth 1; default book 'contacts').",
+    "List contacts of an address book (default 'contacts').",
     {"book": {**BOOK, "default": "contacts"}, "limit": {"type": "integer", "default": 500, "description": "Max contacts returned."}},
 )
 
 NC_CONTACT_LIST_BOOKS = _s(
-    "List the user's address books (DAV directory name + display name; PROPFIND Depth 1 on the addressbook home). Use `name` as the `book` argument of nc_contact_* tools.",
+    "List the user's address books; use a directory `name` as the `book` argument of nc_contact_*.",
     {},
 )
 NC_CONTACT_SEARCH = _s(
-    "Search contacts by substring over name/email/phone (case-insensitive local filter on the parsed book).",
+    "Search contacts by name, email or phone (case-insensitive).",
     {"book": {**BOOK, "default": "contacts"}, "term": {"type": "string", "description": "Substring matched against name/email/phone (case-insensitive)."}},
     ["term"],
 )
 NC_CONTACT_GET = _s(
-    "Get one contact by UID (fn, emails, phones, org, note).",
+    "Get one contact by UID.",
     {"book": {**BOOK, "default": "contacts"}, "uid": {"type": "string", "description": "Contact UID (from nc_contact_list)."}},
     ["uid"],
 )
 NC_CONTACT_CREATE = _s(
-    "Create a contact (vCard 4.0 with FN + UID, PUT + verified read-back). Gated.",
+    "Create a contact with a full name and optional email, phone, org and note.",
     {
         "book": {**BOOK, "default": "contacts"},
         "fn": {"type": "string", "description": "Full name (required by vCard)."},
@@ -315,7 +315,7 @@ NC_CONTACT_CREATE = _s(
     ["fn"],
 )
 NC_CONTACT_EDIT = _s(
-    "Edit a contact by UID (GET, modify provided fields, PUT with If-Match, verified). Gated.",
+    "Edit a contact by UID; only the fields you pass are changed.",
     {
         "book": {**BOOK, "default": "contacts"},
         "uid": {"type": "string", "description": "Contact UID to edit (from nc_contact_list)."},
@@ -331,7 +331,7 @@ NC_CONTACT_EDIT = _s(
 # --- notes ---------------------------------------------------------------------
 
 NC_NOTE_LIST = _s(
-    "List notes (Notes app API; falls back to the WebDAV 'Notes/' folder when the API is unavailable). API content is truncated to a 200-char preview; DAV content is only fetched with with_content=true (default false = metadata only).",
+    "List notes, optionally filtered by category.",
     {
         "category": {"type": "string", "default": "", "description": "Restrict to this category (empty = all)."},
         "limit": {"type": "integer", "default": 50, "description": "Max notes returned."},
@@ -339,12 +339,12 @@ NC_NOTE_LIST = _s(
     },
 )
 NC_NOTE_GET = _s(
-    "Get one full note by id (Notes API id, or title via the WebDAV fallback).",
+    "Get one full note by id (or title).",
     {"id": {"type": "string", "description": "Note id (API) or title (DAV fallback)."}},
     ["id"],
 )
 NC_NOTE_CREATE = _s(
-    "Create a note. Gated; verified by read-back.",
+    "Create a note with a title and optional markdown content and category.",
     {
         "title": {"type": "string", "description": "Note title (also the DAV filename)."},
         "content": {"type": "string", "default": "", "description": "Note body (markdown)."},
@@ -353,12 +353,12 @@ NC_NOTE_CREATE = _s(
     ["title"],
 )
 NC_NOTE_EDIT = _s(
-    "Edit note content and/or title. Gated; verified by read-back.",
+    "Edit a note's content and/or title.",
     {"id": {"type": "string", "description": "Note id (API) or title (DAV fallback)."}, "content": {"type": "string", "default": "", "description": "New content; '' clears the note."}, "title": {"type": "string", "default": "", "description": "New title (renames the note)."}},
     ["id"],
 )
 NC_NOTE_DELETE = _s(
-    "Delete a note. DESTRUCTIVE — gated.",
+    "Delete a note.",
     {"id": {"type": "string", "description": "Note id (API) or title (DAV fallback)."}},
     ["id"],
 )
@@ -366,24 +366,24 @@ NC_NOTE_DELETE = _s(
 # --- misc ----------------------------------------------------------------------
 
 NC_ACTIVITY = _s(
-    "Recent activity of the bot account (file/calendar actions).",
+    "Recent activity of the bot account.",
     {
         "limit": {"type": "integer", "default": 50, "description": "Max entries returned."},
         "since": {"type": "integer", "default": 0, "description": "Unix timestamp; only newer entries."},
     },
 )
 NC_NOTIFICATIONS = _s(
-    "Pending OCS notifications of the bot account itself.",
+    "Pending notifications of the bot account.",
     {"limit": {"type": "integer", "default": 50, "description": "Max notifications returned."}},
 )
 NC_TAG_LIST = _s("List all system tags.", {})
 NC_TAG_ASSIGN = _s(
-    "Assign a system tag to a file/folder (PROPPATCH oc:systemtags + verified PROPFIND read-back). Gated.",
+    "Assign a system tag to a file or folder.",
     {"path": PATH, "tag": {"type": "string", "description": "Tag name (see nc_tag_list)."}},
     ["path", "tag"],
 )
 NC_TAG_UNASSIGN = _s(
-    "Remove a system tag from a file/folder (PROPPATCH + verified read-back). Gated.",
+    "Remove a system tag from a file or folder.",
     {"path": PATH, "tag": {"type": "string", "description": "Tag name (see nc_tag_list)."}},
     ["path", "tag"],
 )
@@ -392,16 +392,16 @@ NC_TRASH_LIST = _s(
     {"limit": {"type": "integer", "default": 100, "description": "Max entries returned."}},
 )
 NC_TRASH_RESTORE = _s(
-    "Restore a trashbin entry to its original location (MOVE with Overwrite: F, verified). Gated.",
+    "Restore a trashbin entry to its original location.",
     {"trash_path": {"type": "string", "description": "Trash path as returned by nc_trash_list."}},
     ["trash_path"],
 )
 NC_TRASH_EMPTY = _s(
-    "Empty the ENTIRE trashbin. DESTRUCTIVE — gated (hard-blocked when settings hard_block_destructive=true).",
+    "Empty the entire trashbin.",
     {},
 )
 NC_COMMENTS = _s(
-    "File comments (comments DAV). action=list is read-only; add is a gated write; delete is DESTRUCTIVE. Give `file_id` or `path` (path is resolved to oc:fileid via PROPFIND).",
+    "List, add or delete comments on a file (give `file_id` or `path`).",
     {
         "action": {"type": "string", "enum": ["list", "add", "delete"], "default": "list", "description": "'list' (read-only), 'add' (gated write) or 'delete' (destructive)."},
         "file_id": {"type": "string", "default": "", "description": "Numeric file id."},
@@ -411,7 +411,7 @@ NC_COMMENTS = _s(
     },
 )
 NC_OCS = _s(
-    "Generic OCS v2 escape hatch for any unmapped endpoint under /ocs/v2.php/. The path must NOT start with '/' and must NOT contain '..' (traversal is rejected before any request). Talk room management (create/invite/leave/topic) needs a CSRF token from GET /index.php/csrftoken and is not covered by these tools. Large `data` payloads are truncated host-side — prefer narrow endpoints.",
+    "Call any unmapped OCS v2 endpoint under /ocs/v2.php/ directly (method, path, query params, form data).",
     {
         "method": {"type": "string", "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"], "default": "GET", "description": "HTTP method; GET is read-only, DELETE is destructive, POST/PUT/PATCH are gated writes."},
         "path": {"type": "string", "description": "OCS path after /ocs/v2.php/, e.g. 'apps/spreed/api/v4/room'."},
@@ -421,7 +421,7 @@ NC_OCS = _s(
     ["path"],
 )
 NC_FILE_UNLOCK = _s(
-    "Force-unlock a file locked by the files_lock app (e.g. a stale 'Gesperrt von App Text' lock). Resolves oc:fileid from `path` (or takes `file_id` directly), then DELETE /ocs/v2.php/apps/files_lock/lock/<fileId> as the file owner. Verified by PROPFIND nc:lock read-back. Folders cannot be unlocked this way. Gated write.",
+    "Force-unlock a file locked by the files_lock app (e.g. a stale lock).",
     {
         "path": PATH,
         "file_id": {"type": "string", "default": "", "description": "Numeric file id; resolved from `path` when omitted."},
