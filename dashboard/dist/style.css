@@ -1,0 +1,109 @@
+/* nextcloud-tools dashboard tab styles.
+ * Every color comes from the host theme tokens (var(--color-*)), which the
+ * dashboard rewrites on theme switch — the plugin ships no color theme of its own.
+ */
+
+.nc-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.5rem 0;
+  background: var(--color-card);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.nc-search {
+  flex: 1 1 auto;
+  min-width: 12rem;
+}
+
+.nc-gatefilter {
+  flex: 0 0 auto;
+  width: 9rem;
+}
+
+.nc-list {
+  max-height: 65vh;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.nc-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.nc-list::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius);
+}
+
+.nc-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nc-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.25rem;
+  border-radius: var(--radius);
+}
+
+.nc-row:hover {
+  background: var(--color-muted);
+}
+
+.nc-row + .nc-row {
+  border-top: 1px solid var(--color-border);
+}
+
+.nc-row:focus-within {
+  outline: 2px solid var(--color-ring);
+  outline-offset: -2px;
+}
+
+.nc-name {
+  flex: 0 0 auto;
+  max-width: 40%;
+  font-family: var(--theme-font-mono);
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nc-desc {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground);
+}
+
+.nc-summary {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.nc-gate {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground);
+  flex: 0 0 auto;
+}
+
+.nc-empty {
+  padding: 1rem 0.25rem;
+  font-size: 0.875rem;
+  color: var(--color-muted-foreground);
+}
