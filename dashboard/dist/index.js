@@ -200,7 +200,7 @@
     var ungatedCount = total - memo.guardedCount;
 
     function toggleControl(props) {
-      if (Checkbox) return React.createElement(Checkbox, props);
+      if (Checkbox) return React.createElement(Checkbox, Object.assign({}, props, { defaultChecked: props.checked }));
       // older host without Checkbox: outlined sm Button as the toggle
       return React.createElement(
         Button,
@@ -278,7 +278,7 @@
         return React.createElement(
           React.Fragment,
           null,
-          React.createElement(TabsList, null, triggers),
+          React.createElement("div", { className: "nc-tabs" }, React.createElement(TabsList, null, triggers)),
           React.createElement(
             "div",
             { className: "nc-list" },
@@ -325,7 +325,7 @@
             "p",
             { className: "text-sm text-muted-foreground" },
             tools.length +
-              " tools. Enable/disable applies on the next agent start / plugin reload; gate changes apply immediately."
+              " tools. Each row has two switches: the left one enables or disables the tool for the agent (applies on the next agent start / plugin reload). The gate switch is the approval gate, on by default — no config entry means enabled; a tool stays gated unless it is listed in `ungated_tools`. While the gate is on, write and destructive calls to the tool ask for your approval before they run (applies immediately); turning it off lets the agent call the tool without an approval prompt."
           ),
           React.createElement(
             "div",

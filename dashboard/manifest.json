@@ -2,7 +2,7 @@
   "name": "nextcloud-tools",
   "label": "Nextcloud",
   "icon": "Database",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "All nc_* tools with per-tool enable/disable and approval-gate toggle.",
   "tab": {
     "path": "/nextcloud-tools",

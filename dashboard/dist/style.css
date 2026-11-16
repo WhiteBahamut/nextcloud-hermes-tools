@@ -25,6 +25,20 @@
   width: 9rem;
 }
 
+.nc-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.nc-tabs > * {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
 .nc-list {
   max-height: 65vh;
   overflow-y: auto;
