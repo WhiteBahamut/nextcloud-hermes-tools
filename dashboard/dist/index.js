@@ -89,11 +89,17 @@
       else setError(tone === "error" ? msg : null);
     }
 
+    function fetchTools() {
+      return SDK.fetchJSON(API + "/tools", { cache: "no-store" }).then(function (data) {
+        return data.tools || [];
+      });
+    }
+
     useEffect(function () {
       var cancelled = false;
-      SDK.fetchJSON(API + "/tools")
-        .then(function (data) {
-          if (!cancelled) setTools(data.tools || []);
+      fetchTools()
+        .then(function (list) {
+          if (!cancelled) setTools(list);
         })
         .catch(function (err) {
           if (!cancelled) notify(String((err && err.message) || err), "error");
@@ -112,19 +118,11 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: !t.enabled })
       })
-        .then(function (res) {
-          var disabled = {};
-          (res.disabled_tools || []).forEach(function (n) {
-            disabled[n] = true;
+        .then(function () {
+          return fetchTools().then(function (list) {
+            setTools(list);
+            notify((!t.enabled ? "Enabled " : "Disabled ") + t.name, "success");
           });
-          setTools(function (prev) {
-            return prev.map(function (x) {
-              var copy = Object.assign({}, x);
-              copy.enabled = !disabled[x.name];
-              return copy;
-            });
-          });
-          notify((!t.enabled ? "Enabled " : "Disabled ") + t.name, "success");
         })
         .catch(function (err) {
           notify("Error: " + String((err && err.message) || err), "error"); // keep old state on error
@@ -143,19 +141,11 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: !t.guarded })
       })
-        .then(function (res) {
-          var ungated = {};
-          (res.ungated_tools || []).forEach(function (n) {
-            ungated[n] = true;
+        .then(function () {
+          return fetchTools().then(function (list) {
+            setTools(list);
+            notify((t.guarded ? "Ungated " : "Gated ") + t.name, "success");
           });
-          setTools(function (prev) {
-            return prev.map(function (x) {
-              var copy = Object.assign({}, x);
-              copy.guarded = !ungated[x.name];
-              return copy;
-            });
-          });
-          notify((t.guarded ? "Ungated " : "Gated ") + t.name, "success");
         })
         .catch(function (err) {
           notify("Error: " + String((err && err.message) || err), "error"); // keep old state on error
@@ -200,7 +190,7 @@
     var ungatedCount = total - memo.guardedCount;
 
     function toggleControl(props) {
-      if (Checkbox) return React.createElement(Checkbox, Object.assign({}, props, { defaultChecked: props.checked }));
+      if (Checkbox) return React.createElement(Checkbox, props);
       // older host without Checkbox: outlined sm Button as the toggle
       return React.createElement(
         Button,
@@ -278,7 +268,7 @@
         return React.createElement(
           React.Fragment,
           null,
-          React.createElement("div", { className: "nc-tabs" }, React.createElement(TabsList, null, triggers)),
+          React.createElement(TabsList, { className: "nc-tabslist" }, triggers),
           React.createElement(
             "div",
             { className: "nc-list" },

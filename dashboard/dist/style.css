@@ -25,16 +25,11 @@
   width: 9rem;
 }
 
-.nc-tabs {
-  display: flex;
+.nc-tabslist {
   flex-wrap: wrap;
-  gap: 0.25rem;
-  min-width: 0;
-}
-
-.nc-tabs > * {
-  display: flex;
-  flex-wrap: wrap;
+  height: auto;
+  min-height: 2.25rem; /* host h-9: a single-line row keeps its height */
+  align-items: center;
   gap: 0.25rem;
   min-width: 0;
 }
