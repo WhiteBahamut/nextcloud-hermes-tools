@@ -14,6 +14,11 @@ Gated calls also carry a plain-English summary of what they do (``_SUMMARIES``
 ``message`` — action + target instead of a raw arg value — redacted before
 return so no secret leaks into the prompt.
 
+Settings ``ungated_tools`` exempts the listed nc_* tools from the approve gate:
+for them ``guard`` returns ``None`` (no approval prompt). ``hard_block_destructive``
+still hard-blocks destructive tools in that list. The exemption is per tool, so
+arg-dispatched tools (``nc_comments``, ``nc_ocs``) are exempted for ALL actions.
+
 
 The hook NEVER raises (a raise fails closed and would block every tool): on any
 internal error an ``nc_`` tool is routed to ``approve`` (fail toward the gate),
@@ -215,19 +220,27 @@ def guard(tool_name="", args=None, **_):
         if cls == "read" or cls is None:
             return None
         summary = client.redact(_describe(name, args))
+        settings = client.settings()
+        ungated = name in settings["ungated_tools"]
         if cls == "destructive":
-            if client.settings()["hard_block_destructive"]:
+            if settings["hard_block_destructive"]:
                 log.warning("hard-block destructive %s %s", name, summary)
                 return {
                     "action": "block",
                     "message": _gated_message("Destructive Nextcloud op hard-blocked (hard_block_destructive)", name, summary),
                     "rule_key": "nc-destructive",
                 }
+            if ungated:
+                log.info("guard %s ungated by ungated_tools", name)
+                return None
             return {
                 "action": "approve",
                 "message": _gated_message("Destructive Nextcloud op", name, summary),
                 "rule_key": "nc-destructive",
             }
+        if ungated:
+            log.info("guard %s ungated by ungated_tools", name)
+            return None
         return {
             "action": "approve",
             "message": _gated_message("Nextcloud write", name, summary),

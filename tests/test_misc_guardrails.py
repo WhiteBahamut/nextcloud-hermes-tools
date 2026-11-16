@@ -51,6 +51,58 @@ def test_guard_hard_block_destructive():
         client.configure(FakeCtx())
 
 
+def test_guard_ungated_write_tool_returns_none():
+    client.configure(FakeCtx({"ungated_tools": ["nc_file_put"]}))
+    try:
+        assert guardrails.guard("nc_file_put", {"path": "/a"}) is None
+        # other writes still gated
+        assert guardrails.guard("nc_file_mkdir", {"path": "/b"})["action"] == "approve"
+    finally:
+        client.configure(FakeCtx())
+
+
+def test_guard_ungated_destructive_tool_returns_none():
+    client.configure(FakeCtx({"ungated_tools": ["nc_file_delete"]}))
+    try:
+        assert guardrails.guard("nc_file_delete", {"path": "/x"}) is None
+    finally:
+        client.configure(FakeCtx())
+
+
+def test_guard_hard_block_wins_over_ungated_destructive():
+    client.configure(FakeCtx({"ungated_tools": ["nc_file_delete"], "hard_block_destructive": True}))
+    try:
+        d = guardrails.guard("nc_file_delete", {"path": "/x"})
+        assert d["action"] == "block" and d["rule_key"] == "nc-destructive"
+    finally:
+        client.configure(FakeCtx())
+
+
+def test_guard_ungated_read_tool_returns_none():
+    client.configure(FakeCtx({"ungated_tools": ["nc_file_list"]}))
+    try:
+        assert guardrails.guard("nc_file_list", {}) is None
+    finally:
+        client.configure(FakeCtx())
+
+
+def test_guard_ungated_arg_dispatched_tool_covers_all_actions():
+    client.configure(FakeCtx({"ungated_tools": ["nc_ocs"]}))
+    try:
+        assert guardrails.guard("nc_ocs", {"method": "DELETE", "path": "x"}) is None
+        assert guardrails.guard("nc_ocs", {"method": "POST", "path": "x"}) is None
+    finally:
+        client.configure(FakeCtx())
+
+
+def test_guard_wrong_typed_ungated_tools_fails_toward_gate():
+    client.configure(FakeCtx({"ungated_tools": "nc_file_put"}))
+    try:
+        assert guardrails.guard("nc_file_put", {"path": "/a"})["action"] == "approve"
+    finally:
+        client.configure(FakeCtx())
+
+
 def test_guard_never_raises_and_fails_toward_gate():
     class Boom:
         def get(self, _k, _d=None):

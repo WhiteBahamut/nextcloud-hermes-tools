@@ -1,9 +1,13 @@
-"""Dashboard-side store for per-tool enable/disable (stdlib only).
+"""Dashboard-side store for per-tool toggles (stdlib only).
 
 Tool names come from plugin.yaml via regex — no yaml import, so the test venv
 (httpx + pytest only) can import this module. The on-disk location in
-~/.hermes/config.yaml is ``plugins.entries.nextcloud-tools.settings.disabled_tools``:
-a sorted list of tool names that ``register()`` leaves unregistered.
+~/.hermes/config.yaml is ``plugins.entries.nextcloud-tools.settings`` with two
+sorted list keys:
+
+- ``disabled_tools``: tool names that ``register()`` leaves unregistered.
+- ``ungated_tools``: tool names exempt from the pre_tool_call approval gate
+  (``guardrails.guard()`` returns None for them; read per call).
 """
 
 from __future__ import annotations
@@ -17,6 +21,59 @@ _TOOL_RE = re.compile(r"^  - (nc_\w+)$", re.M)
 
 _SETTINGS_PATH = ("plugins", "entries", "nextcloud-tools", "settings")
 _DISABLED_KEY = "disabled_tools"
+_UNGATED_KEY = "ungated_tools"
+
+
+def _settings_node(config: dict, create: bool = False):
+    """The ``settings`` dict inside config, or None when a section is missing/wrong-typed.
+
+    With ``create=True`` missing or wrong-typed sections are replaced by fresh
+    dicts so the caller can mutate in place.
+    """
+    node = config
+    for key in _SETTINGS_PATH:
+        if not isinstance(node, dict):
+            return None
+        child = node.get(key)
+        if not isinstance(child, dict):
+            if not create:
+                return None
+            child = {}
+            node[key] = child
+        node = child
+    return node if isinstance(node, dict) else None
+
+
+def _get_str_list(config: dict, key: str) -> list[str]:
+    """The list stored under ``key`` in the settings node; [] when missing or wrong-typed."""
+    node = _settings_node(config)
+    if node is None:
+        return []
+    raw = node.get(key)
+    if not isinstance(raw, list):
+        return []
+    return [str(t) for t in raw]
+
+
+def _set_str_list(config: dict, key: str, name: str, present: bool) -> list[str]:
+    """Add/remove ``name`` in the settings list under ``key`` (kept sorted).
+
+    Validates ``name`` against list_tool_names() BEFORE mutating config, creates
+    missing nested sections, and returns the new list. Never writes any file —
+    persistence is the caller's job. Raises ValueError for an unknown tool name.
+    """
+    if name not in list_tool_names():
+        raise ValueError(f"unknown nc_* tool: {name!r}")
+    node = _settings_node(config, create=True)
+    raw = node.get(key)
+    items = {str(t) for t in raw} if isinstance(raw, list) else set()
+    if present:
+        items.add(name)
+    else:
+        items.discard(name)
+    new_list = sorted(items)
+    node[key] = new_list
+    return new_list
 
 
 def list_tool_names() -> list[str]:
@@ -27,14 +84,12 @@ def list_tool_names() -> list[str]:
 
 def get_disabled_tools(config: dict) -> list[str]:
     """The configured disabled_tools list; [] when any section is missing or wrong-typed."""
-    node = config
-    for key in (*_SETTINGS_PATH, _DISABLED_KEY):
-        if not isinstance(node, dict):
-            return []
-        node = node.get(key)
-    if not isinstance(node, list):
-        return []
-    return [str(t) for t in node]
+    return _get_str_list(config, _DISABLED_KEY)
+
+
+def get_ungated_tools(config: dict) -> list[str]:
+    """The configured ungated_tools list; [] when any section is missing or wrong-typed."""
+    return _get_str_list(config, _UNGATED_KEY)
 
 
 def set_tool_enabled(config: dict, name: str, enabled: bool) -> list[str]:
@@ -44,24 +99,16 @@ def set_tool_enabled(config: dict, name: str, enabled: bool) -> list[str]:
     missing nested sections, and returns the new list. Never writes any file —
     persistence is the caller's job. Raises ValueError for an unknown tool name.
     """
-    if name not in list_tool_names():
-        raise ValueError(f"unknown nc_* tool: {name!r}")
-    node = config
-    for key in _SETTINGS_PATH:
-        child = node.get(key)
-        if not isinstance(child, dict):
-            child = {}
-            node[key] = child
-        node = child
-    raw = node.get(_DISABLED_KEY)
-    disabled = {str(t) for t in raw} if isinstance(raw, list) else set()
-    if enabled:
-        disabled.discard(name)
-    else:
-        disabled.add(name)
-    new_list = sorted(disabled)
-    node[_DISABLED_KEY] = new_list
-    return new_list
+    return _set_str_list(config, _DISABLED_KEY, name, not enabled)
+
+
+def set_tool_guarded(config: dict, name: str, guarded: bool) -> list[str]:
+    """Add/remove ``name`` in the config's ungated_tools list (kept sorted).
+
+    ``guarded=False`` puts ``name`` in ungated_tools (exempt from the approval
+    gate). Same validation and no-file-write contract as set_tool_enabled.
+    """
+    return _set_str_list(config, _UNGATED_KEY, name, not guarded)
 
 
 def classify_gate(name: str) -> str:

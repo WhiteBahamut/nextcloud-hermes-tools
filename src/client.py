@@ -127,6 +127,7 @@ def settings() -> dict:
         "talk_include_dms": bool(get_config("talk_include_dms", False)),
         "talk_skip_tokens": [str(t) for t in skip],
         "disabled_tools": [str(t) for t in disabled],
+        "ungated_tools": [str(t) for t in (get_config("ungated_tools", []) or [])],
         "hard_block_destructive": bool(get_config("hard_block_destructive", False)),
         "log_level": str(get_config("log_level", "INFO") or "INFO").upper(),
     }

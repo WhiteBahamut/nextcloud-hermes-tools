@@ -1,5 +1,5 @@
 name: nextcloud-tools
-version: 0.18.0
+version: 0.19.0
 description: >-
   Nextcloud toolset for Hermes Agent: 48 tools against one Nextcloud server -
   files (WebDAV), unified/full-text search, shares, Talk, calendar, tasks,
@@ -114,6 +114,10 @@ config_schema:
     type: bool
     default: false
     description: If true, destructive nc_* operations are hard-blocked by the pre_tool_call hook instead of routed to the approval gate.
+  ungated_tools:
+    type: list
+    default: []
+    description: nc_* tool names exempt from the pre_tool_call approval gate (guard returns None, no approval prompt). hard_block_destructive still hard-blocks destructive tools in this list. Read per call — applies immediately, no restart needed.
   log_level:
     type: str
     default: "INFO"

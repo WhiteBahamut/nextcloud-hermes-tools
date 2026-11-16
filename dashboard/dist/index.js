@@ -1,4 +1,4 @@
-/* nextcloud-tools dashboard tab: lists all nc_* tools with per-tool enable/disable.
+/* nextcloud-tools dashboard tab: lists all nc_* tools with per-tool enable/disable and approval-gate toggle.
  * Plain IIFE bundle — no build step, no imports. React and UI components come
  * from window.__HERMES_PLUGIN_SDK__; registration name must match manifest.json.
  */
@@ -74,6 +74,36 @@
         });
     }
 
+    function toggleGuardrails(t) {
+      if (busy) return; // one PUT at a time — concurrent writes race on the same config key
+      setBusy(true);
+      setError(null);
+      SDK.fetchJSON(API + "/tools/" + encodeURIComponent(t.name) + "/guardrails", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: !t.guarded })
+      })
+        .then(function (res) {
+          var ungated = {};
+          (res.ungated_tools || []).forEach(function (n) {
+            ungated[n] = true;
+          });
+          setTools(function (prev) {
+            return prev.map(function (x) {
+              var copy = Object.assign({}, x);
+              copy.guarded = !ungated[x.name];
+              return copy;
+            });
+          });
+        })
+        .catch(function (err) {
+          setError(String((err && err.message) || err)); // keep old state on error
+        })
+        .finally(function () {
+          setBusy(false);
+        });
+    }
+
     return React.createElement(
       Card,
       null,
@@ -96,7 +126,7 @@
           "p",
           { className: "text-sm text-muted-foreground" },
           tools.length +
-            " tools. Changes apply on the next agent start / plugin reload."
+            " tools. Enable/disable applies on the next agent start / plugin reload; gate changes apply immediately."
         ),
         React.createElement(
           "div",
@@ -114,6 +144,7 @@
                 t.name
               ),
               React.createElement(Badge, null, t.gate),
+              React.createElement(Badge, null, t.guarded ? "gated" : "ungated"),
               React.createElement(
                 Button,
                 {
@@ -125,6 +156,18 @@
                   }
                 },
                 t.enabled ? "Disable" : "Enable"
+              ),
+              React.createElement(
+                Button,
+                {
+                  size: "sm",
+                  variant: t.guarded ? "outline" : "default",
+                  disabled: busy,
+                  onClick: function () {
+                    toggleGuardrails(t);
+                  }
+                },
+                t.guarded ? "Ungate" : "Gate"
               )
             );
           })

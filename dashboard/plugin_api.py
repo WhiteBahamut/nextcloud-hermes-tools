@@ -4,8 +4,9 @@ Mounted at ``/api/plugins/nextcloud-tools/``. Never imported by the CLI plugin o
 the test suite: fastapi / hermes_cli are host-only dependencies.
 
 Wire contract with ``dist/index.js`` (never rename one side only):
-  GET /tools            -> {"tools": [{"name", "description", "gate", "enabled"}]}
+  GET /tools            -> {"tools": [{"name", "description", "gate", "enabled", "guarded"}]}
   PUT /tools/{name}     -> {"ok": true, "disabled_tools": [...]}  (body {"enabled": bool})
+  PUT /tools/{name}/guardrails -> {"ok": true, "ungated_tools": [...]}  (body {"enabled": bool})
 """
 
 from __future__ import annotations
@@ -49,6 +50,10 @@ class ToolToggle(BaseModel):
     enabled: bool
 
 
+class GuardrailToggle(BaseModel):
+    enabled: bool
+
+
 def _description(name: str) -> str:
     """Schema description for a tool name (nc_file_list -> schemas.NC_FILE_LIST)."""
     schema = getattr(schemas, name.upper(), None)
@@ -63,6 +68,7 @@ async def list_tools(profile: Optional[str] = None):
         with _profile_scope(profile):
             config = load_config()
             disabled = set(dashboard_store.get_disabled_tools(config))
+            ungated = set(dashboard_store.get_ungated_tools(config))
             return {
                 "tools": [
                     {
@@ -70,6 +76,7 @@ async def list_tools(profile: Optional[str] = None):
                         "description": _description(name),
                         "gate": dashboard_store.classify_gate(name),
                         "enabled": name not in disabled,
+                        "guarded": name not in ungated,
                     }
                     for name in dashboard_store.list_tool_names()
                 ]
@@ -89,5 +96,20 @@ async def toggle_tool(name: str, body: ToolToggle, profile: Optional[str] = None
                 raise HTTPException(status_code=400, detail=str(exc))
             save_config(config)
             return {"ok": True, "disabled_tools": disabled}
+
+    return await asyncio.to_thread(_run)
+
+
+@router.put("/tools/{name}/guardrails")
+async def toggle_guardrails(name: str, body: GuardrailToggle, profile: Optional[str] = None):
+    def _run():
+        with config_write_scope(profile):
+            config = load_config()
+            try:
+                ungated = dashboard_store.set_tool_guarded(config, name, body.enabled)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+            save_config(config)
+            return {"ok": True, "ungated_tools": ungated}
 
     return await asyncio.to_thread(_run)
