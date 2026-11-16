@@ -56,6 +56,11 @@
       "sha256": "c22aada4ec64530e7738c6da15c88116f62509e179e36d2146f2e68573f5c3eb",
       "bytes": 1256
     },
+    "files_lock_readme": {
+      "url": "https://raw.githubusercontent.com/nextcloud/files_lock/v35.0.3/README.md",
+      "sha256": "202fb73cba2af5372aea22ade40c1a6b0a0d1d296e5dda9b550fb37918326ccc",
+      "bytes": 11900
+    },
     "hermes_hooks_py": {
       "url": "https://raw.githubusercontent.com/NousResearch/hermes-agent/8d7061f1a74980a7549356a4e5e57b603475ddf0/hermes_cli/hooks.py",
       "sha256": "501687eb95df95fe2c5e6d73abe905aeaaefe03676dde8010bfdd143003c1824",

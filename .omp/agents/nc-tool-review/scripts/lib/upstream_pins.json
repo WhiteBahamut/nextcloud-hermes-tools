@@ -85,6 +85,10 @@
       "url": "https://raw.githubusercontent.com/nextcloud/notes/v6.1.0/docs/api/v1.md",
       "note": "Notes app API v1 doc — covers /index.php/apps/notes/api/v1/notes."
     },
+    "files_lock_readme": {
+      "url": "https://raw.githubusercontent.com/nextcloud/files_lock/v35.0.3/README.md",
+      "note": "files_lock app README at tag v35.0.3 (NC 35 line) — documents the OCS lock API (PUT/DELETE /apps/files_lock/lock/{fileId} with OCS-APIRequest: true) and the WebDAV nc:lock / nc:lock-owner-* PROPFIND props."
+    },
     "rfc4918_webdav": {
       "url": "https://www.rfc-editor.org/rfc/rfc4918.txt",
       "note": "RFC 4918 (WebDAV) text — 10 multistatus examples incl. per-propstat HTTP/1.1 200/403/412 statuses. sabre/dav test files were dropped as fixture sources: their tests xpath into server-generated XML instead of embedding multistatus literals (verified at tag 4.7.1), so the pinned docs + RFC are the upstream XML fixtures."

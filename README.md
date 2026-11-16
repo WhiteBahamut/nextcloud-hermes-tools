@@ -5,7 +5,7 @@
 
 A native [Hermes Agent](https://github.com/NousResearch/hermes-agent) **directory plugin** that gives the agent first-class **Nextcloud tools** — files, full-text search, shares, Talk rooms, calendar, tasks, contacts, notes, activity and more — as real tool calls with schemas, instead of shelling out to curl.
 
-All 48 tools live in the `nextcloud` toolset. Every handler returns a JSON string and never raises; every write is verified by read-back; a `pre_tool_call` hook gates writes/destructive ops through the approval system.
+All 49 tools live in the `nextcloud` toolset. Every handler returns a JSON string and never raises; every write is verified by read-back; a `pre_tool_call` hook gates writes/destructive ops through the approval system.
 
 ## Table of Contents
 
@@ -47,6 +47,7 @@ All 48 tools live in the `nextcloud` toolset. Every handler returns a JSON strin
 | `nc_trash_list` / `nc_trash_restore` / `nc_trash_empty` | trashbin DAV | Restore = MOVE to original location with `Overwrite: F` |
 | `nc_comments` | comments DAV | `action=list` read-only; `add` write-gated; `delete` destructive; `path` resolved to `oc:fileid` |
 | `nc_ocs` | generic OCS v2 escape hatch | Traversal (`..`, leading `/`) rejected before any request |
+| `nc_file_unlock` | files_lock OCS `DELETE /ocs/v2.php/apps/files_lock/lock/<fileId>` | force-unlock as file owner; verified by PROPFIND `nc:lock` read-back; folders rejected |
 
 ## Install
 

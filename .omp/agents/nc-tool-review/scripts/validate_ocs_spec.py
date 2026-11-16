@@ -228,6 +228,8 @@ class MockServer:
             if request.method == "POST":
                 return {"id": 1, "title": "note title", "category": "", "content": ""}
             return [{"id": 1, "title": "note title", "category": "", "content": "x"}]
+        if rel.startswith("apps/files_lock/"):
+            return []
         if rel == "cloud/capabilities":
             return {"version": {"major": 35, "minor": 0, "micro": 2, "string": "35.0.2", "edition": "", "extendedSupport": False}, "capabilities": {}}
         return []
@@ -354,7 +356,7 @@ def main() -> int:
             if item is None:
                 item, op = match_spec(talk_spec, method, path)
                 src = "spreed"
-            if item is None and re.match(r"^/ocs/v2\.php/apps/(notifications|spreed)/api/v\d+/", path):
+            if item is None and re.match(r"^/ocs/v2\.php/apps/(?:notifications/api/v\d+/|spreed/api/v\d+/|files_lock/)", path):
                 # app endpoint excluded from both pinned specs; covered by layer 1 docs
                 app_checked += 1
                 continue

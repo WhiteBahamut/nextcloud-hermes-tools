@@ -14,7 +14,7 @@ Checks (each printed as ``  ok ...`` / ``  FAIL ...``; final line
    for secrets outside ``src/client.py``; the word-grep from the checklist is counted
    as an info line, not a failure.
 2. URLs: no ``https?://`` literal outside ``src/client.py``, except XML namespace URIs
-   (``owncloud.org/ns``, ``urn:ietf:``) in src and the mock hosts ``nc.example`` /
+   (``owncloud.org/ns``, ``nextcloud.org/ns``, ``urn:ietf:``) in src and the mock hosts
    ``talk.example`` in tests.
 3. request paths: every ``client.request/ocs/propfind/dav_*`` call site in changed
    ``src/tools_*.py`` must not interpolate raw ``args`` into the path (paths go
@@ -109,9 +109,9 @@ def main() -> int:
                 url = m.group(0)
                 if f == "src/client.py":
                     continue
-                if f.startswith("tests/") and any(h in url for h in ("nc.example", "talk.example")):
+                if f.startswith("tests/") and any(h in url for h in ("nc.example", "talk.example", "nextcloud.org/ns")):
                     continue
-                if f.startswith("src/") and any(p in url for p in ("owncloud.org/ns", "urn:ietf:")):
+                if f.startswith("src/") and any(p in url for p in ("owncloud.org/ns", "nextcloud.org/ns", "urn:ietf:")):
                     continue
                 bad_urls.append(f"{f}:{i}: {url}")
     check("no URL literals outside src/client.py (except XML namespaces / mock hosts)", not bad_urls, "; ".join(bad_urls[:5]))
@@ -205,7 +205,7 @@ def main() -> int:
                 if re.search(pat, text):
                     check(f"{f} hermetic (no {pat})", False, "found real-network construct")
             for m2 in URL_RE.finditer(text):
-                if not any(h in m2.group(0) for h in ("nc.example", "talk.example")):
+                if not any(h in m2.group(0) for h in ("nc.example", "talk.example", "nextcloud.org/ns")):
                     check(f"{f} only mock-host URLs", False, m2.group(0))
     check("changed tests stay MockTransport-only", all("MockTransport" not in x and "hermetic" not in x and "mock-host" not in x for x in failures))
 

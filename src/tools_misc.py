@@ -6,6 +6,7 @@
   location with ``Overwrite: F``.
 - ``nc_ocs`` rejects leading ``/`` and any ``..`` segment BEFORE any request.
 - Tag assign/unassign verify via PROPFIND read-back.
+- ``nc_file_unlock``: DELETE /ocs/v2.php/apps/files_lock/lock/<fileId> as file owner (OCS-APIRequest header is set client-wide in client.get_client); lock state via a local PROPFIND <nc:lock/> body; folders rejected at resolution.
 """
 
 from __future__ import annotations
@@ -243,6 +244,59 @@ def _comments(args):
     return client.err(f"unknown action {action!r}")
 
 
+# --- files_lock (force-unlock) ------------------------------------------------------
+
+# Local PROPFIND body for files_lock lock state; deliberately NOT part of dav.PROPFIND_ALL.
+PROPFIND_LOCK = (
+    '<?xml version="1.0"?>'
+    '<d:propfind xmlns:d="DAV:" xmlns:nc="http://nextcloud.org/ns">'
+    "<d:prop><nc:lock/><nc:lock-owner-type/><nc:lock-owner/><nc:lock-owner-editor/></d:prop>"
+    "</d:propfind>"
+)
+
+
+def _lock_props(href: str) -> dict:
+    rs = parse_multistatus(client.propfind(href, depth=0, body=PROPFIND_LOCK).text)
+    return rs[0]["props"] if rs else {}
+
+
+def _file_unlock(args):
+    path = str(args.get("path") or "")
+    if not path:
+        raise client.NcError(400, "path required")
+    href = client.files_dav(path)  # enc_path rejects '.'/'..' segments before any request
+    file_id = str(args.get("file_id") or "")
+    if file_id:
+        if not file_id.isdigit():
+            raise client.NcError(400, "file_id must be numeric")
+    else:
+        # same resolution pattern as _resolve_file_id (lines 170-183), plus the folder check
+        rs = parse_multistatus(client.propfind(href, depth=0, body=PROPFIND_ALL).text)
+        props = rs[0]["props"] if rs else {}
+        if props.get("resourcetype") is True:
+            return client.err("cannot unlock a folder: files_lock removal works on files only", path=path)
+        file_id = str(props.get("fileid") or "")
+        if not file_id:
+            raise client.NcError(404, f"could not resolve oc:fileid for {path}")
+    pre = _lock_props(href)
+    if not pre.get("lock"):
+        return client.err("file is not locked", status=412, path=path, file_id=file_id)
+    # DELETE /ocs/v2.php/apps/files_lock/lock/<fileId>; a 412 racing in here surfaces
+    # via client.ocs() as NcError(412, "File is not locked") -> err JSON from the wrapper
+    client.ocs("DELETE", f"apps/files_lock/lock/{file_id}")
+    if _lock_props(href).get("lock"):
+        return client.err("unlock verification failed: file is still locked", path=path, file_id=file_id)
+    return client.ok(
+        path=path,
+        file_id=file_id,
+        unlocked=True,
+        verified=True,
+        lock_owner_type=pre.get("lock-owner-type"),
+        lock_owner=pre.get("lock-owner"),
+        lock_owner_editor=pre.get("lock-owner-editor"),
+    )
+
+
 # --- generic OCS escape hatch ----------------------------------------------------------
 
 
@@ -273,4 +327,5 @@ TOOLS = [
     ("nc_trash_empty", schemas.NC_TRASH_EMPTY, client.tool(_trash_empty)),
     ("nc_comments", schemas.NC_COMMENTS, client.tool(_comments)),
     ("nc_ocs", schemas.NC_OCS, client.tool(_ocs)),
+    ("nc_file_unlock", schemas.NC_FILE_UNLOCK, client.tool(_file_unlock)),
 ]

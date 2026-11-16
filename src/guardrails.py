@@ -46,7 +46,7 @@ WRITES = frozenset({
     "nc_talk_send", "nc_talk_react", "nc_cal_create", "nc_cal_edit",
     "nc_task_create", "nc_task_complete", "nc_task_reopen", "nc_contact_create", "nc_contact_edit",
     "nc_note_create", "nc_note_edit", "nc_tag_assign", "nc_tag_unassign",
-    "nc_trash_restore",
+    "nc_trash_restore", "nc_file_unlock",
 })
 
 DESTRUCTIVE = frozenset({
@@ -93,6 +93,7 @@ _SUMMARIES = {
     "nc_tag_unassign": "remove tag '{tag}' from '{path}'",
     "nc_trash_restore": "restore trashbin entry '{trash_path}' to its original location",
     "nc_trash_empty": "empty the ENTIRE trashbin",
+    "nc_file_unlock": "force-unlock file '{file_target}' (remove the files_lock lock)",
 }
 
 # Arg-dispatched tools: template chosen via args["action"] / args["method"],
@@ -141,6 +142,8 @@ def _describe(name: str, args) -> str:
     extra = {}
     if name == "nc_comments":
         template = _ACTION_SUMMARIES["nc_comments"].get(str(a.get("action") or "list"))
+        extra["file_target"] = a.get("file_id") or a.get("path") or ""
+    elif name == "nc_file_unlock":
         extra["file_target"] = a.get("file_id") or a.get("path") or ""
     elif name == "nc_ocs":
         method = str(a.get("method") or "GET").upper()

@@ -2,7 +2,7 @@ import httpx
 import json
 import pytest
 import conftest
-from conftest import FakeCtx, multistatus, ocs_ok
+from conftest import FakeCtx, multistatus, ocs_err, ocs_ok
 from nextcloud_tools import client, guardrails
 
 FILES = "/remote.php/dav/files/bot"
@@ -35,6 +35,15 @@ def test_guard_matrix():
     assert d2["message"] == "Destructive Nextcloud op — delete event with uid '8f6cf60a-x' in calendar 'personal' (nc_cal_delete)"
     c = g("nc_cal_create", {"summary": "Standup", "start": "2026-11-16T09:00:00Z", "end": "2026-11-16T09:30:00Z"})
     assert "create event 'Standup' in calendar 'personal'" in c["message"]  # schema default applied
+
+
+def test_guard_file_unlock_is_a_gated_write():
+    w = guardrails.guard("nc_file_unlock", {"path": "/a.txt"})
+    assert w["action"] == "approve" and w["rule_key"] == "nc-write"
+    assert "force-unlock file '/a.txt'" in w["message"]
+    assert w["message"].endswith("(nc_file_unlock)")
+    w2 = guardrails.guard("nc_file_unlock", {"path": "/a.txt", "file_id": "42"})
+    assert "42" in w2["message"]
 
 
 def test_guard_hard_block_destructive():
@@ -369,3 +378,132 @@ def test_activity_and_notifications(nc, call):
     assert nc.requests[0].url.params["since"] == "123"
     res = call("nc_notifications", {"limit": 5})
     assert res["ok"] and res["notifications"] == [{"notification_id": 5}]
+
+
+def test_file_unlock_via_path_resolves_deletes_and_verifies(nc, call):
+    lock_reads = {"n": 0}
+
+    def h(req):
+        p = req.url.path
+        if req.method == "PROPFIND" and p == f"{FILES}/a.txt":
+            if b"calendar-data" in req.content:  # resolution PROPFIND (PROPFIND_ALL)
+                return multistatus([(p, "<oc:fileid>195509</oc:fileid><d:resourcetype/>")])
+            if b"nc:lock" in req.content:  # lock-state PROPFIND (PROPFIND_LOCK)
+                lock_reads["n"] += 1
+                if lock_reads["n"] == 1:
+                    return multistatus([(p,
+                        '<nc:lock xmlns:nc="http://nextcloud.org/ns">1</nc:lock>'
+                        '<nc:lock-owner-type xmlns:nc="http://nextcloud.org/ns">1</nc:lock-owner-type>'
+                        '<nc:lock-owner-editor xmlns:nc="http://nextcloud.org/ns">Text</nc:lock-owner-editor>')])
+                return multistatus([(p, '<nc:lock xmlns:nc="http://nextcloud.org/ns"></nc:lock>')])
+        if req.method == "DELETE" and p == "/ocs/v2.php/apps/files_lock/lock/195509":
+            return ocs_ok([])
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_file_unlock", {"path": "/a.txt"})
+    assert res["ok"] and res["verified"] and res["unlocked"]
+    assert res["file_id"] == "195509"
+    assert res["lock_owner_type"] == "1" and res["lock_owner_editor"] == "Text"
+    assert nc.methods() == ["PROPFIND", "PROPFIND", "DELETE", "PROPFIND"]
+    deletes = nc.find("DELETE", "files_lock")
+    assert len(deletes) == 1
+    assert deletes[0].url.path == "/ocs/v2.php/apps/files_lock/lock/195509"
+    assert deletes[0].headers["OCS-APIRequest"] == "true"
+
+
+def test_file_unlock_with_file_id_skips_resolution(nc, call):
+    state = {"deleted": False}
+
+    def h(req):
+        p = req.url.path
+        if req.method == "PROPFIND" and p == f"{FILES}/a.txt":
+            lock = ('<nc:lock xmlns:nc="http://nextcloud.org/ns">1</nc:lock>'
+                    if not state["deleted"] else
+                    '<nc:lock xmlns:nc="http://nextcloud.org/ns"></nc:lock>')
+            return multistatus([(p, lock)])
+        if req.method == "DELETE" and p == "/ocs/v2.php/apps/files_lock/lock/42":
+            state["deleted"] = True
+            return ocs_ok([])
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_file_unlock", {"path": "/a.txt", "file_id": "42"})
+    assert res["ok"] and res["verified"] and res["file_id"] == "42"
+    assert nc.methods() == ["PROPFIND", "DELETE", "PROPFIND"]
+    assert nc.find("DELETE", "files_lock")[0].url.path.endswith("/lock/42")
+
+
+def test_file_unlock_not_locked_errors_without_delete(nc, call):
+    def h(req):
+        p = req.url.path
+        if req.method == "PROPFIND" and p == f"{FILES}/a.txt":
+            if b"calendar-data" in req.content:
+                return multistatus([(p, "<oc:fileid>9</oc:fileid><d:resourcetype/>")])
+            return multistatus([(p, '<nc:lock xmlns:nc="http://nextcloud.org/ns"></nc:lock>')])
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_file_unlock", {"path": "/a.txt"})
+    assert res["ok"] is False and "not locked" in res["error"]
+    assert res.get("status") == 412
+    assert nc.find("DELETE", "files_lock") == []
+
+
+def test_file_unlock_delete_412_surfaces_as_err(nc, call):
+    def h(req):
+        p = req.url.path
+        if req.method == "PROPFIND" and p == f"{FILES}/a.txt":
+            if b"calendar-data" in req.content:
+                return multistatus([(p, "<oc:fileid>9</oc:fileid><d:resourcetype/>")])
+            return multistatus([(p, '<nc:lock xmlns:nc="http://nextcloud.org/ns">1</nc:lock>')])
+        if req.method == "DELETE" and "files_lock" in p:
+            return ocs_err(412, "File is not locked", http=412)
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_file_unlock", {"path": "/a.txt"})
+    assert res["ok"] is False and "412" in res["error"] and "File is not locked" in res["error"]
+
+
+def test_file_unlock_folder_rejected(nc, call):
+    def h(req):
+        if req.method == "PROPFIND" and req.url.path == f"{FILES}/a.txt":
+            return multistatus([(f"{FILES}/a.txt",
+                                 "<d:resourcetype><d:collection/></d:resourcetype><oc:fileid>7</oc:fileid>")])
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_file_unlock", {"path": "/a.txt"})
+    assert res["ok"] is False and "folder" in res["error"]
+    assert nc.find("DELETE", "files_lock") == []
+
+
+def test_file_unlock_readback_still_locked_fails(nc, call):
+    def h(req):
+        p = req.url.path
+        if req.method == "PROPFIND" and p == f"{FILES}/a.txt":
+            if b"calendar-data" in req.content:
+                return multistatus([(p, "<oc:fileid>9</oc:fileid><d:resourcetype/>")])
+            return multistatus([(p, '<nc:lock xmlns:nc="http://nextcloud.org/ns">1</nc:lock>')])
+        if req.method == "DELETE" and "files_lock" in p:
+            return ocs_ok([])
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_file_unlock", {"path": "/a.txt"})
+    assert res["ok"] is False and "verification failed" in res["error"]
+
+
+def test_file_unlock_nonnumeric_file_id_rejected(nc, call):
+    nc.handler = lambda req: httpx.Response(404, text="nf")
+    res = call("nc_file_unlock", {"path": "/a.txt", "file_id": "12/../../x"})
+    assert res["ok"] is False and "file_id must be numeric" in res["error"]
+    assert nc.requests == []
+
+
+def test_file_unlock_traversal_path_rejected_before_request(nc, call):
+    nc.handler = lambda req: httpx.Response(404, text="nf")
+    res = call("nc_file_unlock", {"path": "/../x"})
+    assert res["ok"] is False
+    assert nc.requests == []

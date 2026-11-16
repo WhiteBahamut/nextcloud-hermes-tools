@@ -1,4 +1,4 @@
-"""JSON-Schema definitions for all 48 nextcloud-tools.
+"""JSON-Schema definitions for all 49 nextcloud-tools.
 
 One dict per tool: ``{"description": ..., "parameters": {"type": "object", ...}}``.
 Descriptions teach the model when to call each tool.
@@ -417,6 +417,14 @@ NC_OCS = _s(
         "path": {"type": "string", "description": "OCS path after /ocs/v2.php/, e.g. 'apps/spreed/api/v4/room'."},
         "params": {"type": "object", "default": {}, "description": "Query parameters (GET/DELETE)."},
         "data": {"type": "object", "default": {}, "description": "Form fields (POST/PUT/PATCH)."},
+    },
+    ["path"],
+)
+NC_FILE_UNLOCK = _s(
+    "Force-unlock a file locked by the files_lock app (e.g. a stale 'Gesperrt von App Text' lock). Resolves oc:fileid from `path` (or takes `file_id` directly), then DELETE /ocs/v2.php/apps/files_lock/lock/<fileId> as the file owner. Verified by PROPFIND nc:lock read-back. Folders cannot be unlocked this way. Gated write.",
+    {
+        "path": PATH,
+        "file_id": {"type": "string", "default": "", "description": "Numeric file id; resolved from `path` when omitted."},
     },
     ["path"],
 )

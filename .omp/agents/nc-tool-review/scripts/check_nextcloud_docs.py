@@ -102,6 +102,7 @@ def main() -> int:
     docs35 = {n: cached(f"docs_v35_{n}") for n in ("ocs_overview", "ocs_share", "webdav_basic", "webdav_comments", "webdav_trashbin")}
     notes_doc = cached("notes_docs_v6")
     talk_doc = cached("talk_docs_conversation")
+    files_lock_doc = cached("files_lock_readme")
     webdav_union_34 = docs34["webdav_basic"] + docs34["webdav_comments"] + docs34["webdav_trashbin"]
 
     # --- DAV roots -------------------------------------------------------------
@@ -126,6 +127,10 @@ def main() -> int:
             check(f"ocs {ep} present in floor Talk app openapi.json (spreed)", talk_hit, f"talk paths sample {sorted(talk_paths)[:5]}")
         elif ep.startswith("apps/notifications/"):
             check(f"ocs {ep} mentioned in floor OCS overview doc (app endpoint, not in server spec)", "notifications" in docs34["ocs_overview"])
+        elif ep.startswith("apps/files_lock/"):
+            seg = ep.split("apps/files_lock/", 1)[1]
+            check(f"ocs {ep} documented in pinned files_lock app README (app endpoint, not in server spec)",
+                  f"/apps/files_lock/{seg}" in files_lock_doc, "pinned files_lock README lacks the endpoint path")
         else:
             check(f"ocs {ep} present in floor ({FLOOR_TAG}) openapi.json", False, f"{spec_path} not in spec paths")
 
@@ -170,6 +175,10 @@ def main() -> int:
 
     # --- Talk app doc sanity -----------------------------------------------------------
     check("talk docs mention apps/spreed/api/v4", "apps/spreed/api/v4" in talk_doc or any("apps/spreed/api/v4" in p for p in talk_paths))
+
+    # --- files_lock app doc sanity -----------------------------------------------------
+    check("files_lock README documents the nc:lock PROPFIND props",
+          "nc:lock" in files_lock_doc and "nc:lock-owner-editor" in files_lock_doc and "OCS-APIRequest" in files_lock_doc)
 
     if failures:
         print(f"FAIL nextcloud-docs: {len(failures)} check(s) failed")
