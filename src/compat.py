@@ -9,8 +9,10 @@ agent version comes from the installed ``hermes-agent`` distribution metadata
 (``importlib.metadata`` — stdlib, no Hermes internal import).
 
 Log level policy: INFO when the detected version is inside the tested range,
-WARNING otherwise (older, newer, or undeterminable) — a warning is the loud
-signal that a compat check has not run against this version. Never raises.
+when it is undeterminable (unknown Hermes version, failed ``/status.php``
+probe), or — for an unknown Hermes version — covered by the verified tested
+line; WARNING only for concrete out-of-range versions (older/newer than
+tested). Never raises.
 """
 
 from __future__ import annotations
@@ -91,7 +93,7 @@ def _server_version(err_out: list[str] | None = None) -> str:
 
 
 def check_versions() -> None:
-    """Log Hermes + Nextcloud versions at INFO (tested) / WARNING (not tested).
+    """Log Hermes + Nextcloud versions at INFO (tested, undeterminable, or verified-compatible) / WARNING (out of range).
 
     Never raises — a failure here must not break plugin load; the residual
     risk is logged at DEBUG with the traceback.
@@ -99,6 +101,8 @@ def check_versions() -> None:
     try:
         hv = hermes_version()
         pv = parse_version(hv)
+        if pv is not None and not any(pv):  # all-zero dev placeholder (0.0.0) == unknown
+            pv = None
         if pv is not None and pv[:2] == HERMES_TESTED:
             log.info(
                 "Hermes agent v%s is within the tested line v%d.%d.x (nc-compat-hermes)",
@@ -115,7 +119,11 @@ def check_versions() -> None:
                 hv, HERMES_TESTED[0], HERMES_TESTED[1],
             )
         else:
-            log.warning("could not determine the Hermes agent version (hermes-agent distribution not installed?)")
+            log.info(
+                "could not determine the Hermes agent version (dev build%s); "
+                "this plugin is verified compatible with Hermes v%d.%d.x (nc-compat-hermes)",
+                f" {hv}" if hv else "", HERMES_TESTED[0], HERMES_TESTED[1],
+            )
 
         if not client.configured():
             log.info("Nextcloud credentials not configured (NC_*/TALK_* unset); skipping the server version check")
@@ -140,7 +148,7 @@ def check_versions() -> None:
                 sv, NC_TESTED_MAJOR_MAX,
             )
         else:
-            log.warning(
+            log.info(
                 "could not determine the Nextcloud server version from /status.php (%s)",
                 client._log_safe(err_out[0] if err_out else "unknown error"),
             )

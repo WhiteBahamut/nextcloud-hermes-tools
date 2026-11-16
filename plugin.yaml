@@ -1,5 +1,5 @@
 name: nextcloud-tools
-version: 0.23.0
+version: 0.23.1
 description: >-
   Nextcloud toolset for Hermes Agent: 52 tools against one Nextcloud server -
   files (WebDAV), unified/full-text search, shares, Talk, calendar, tasks,
@@ -8,6 +8,7 @@ description: >-
   read-back verified and gated by a pre_tool_call approval hook.
 author: WhiteBahamut
 license: MIT
+requires_hermes: ">=0.23.0"
 requires_env:
   # NC_* preferred; TALK_* (Talk platform plugin names) accepted as fallback
   # by client._secret via ENV_ALIASES — only the NC_* names are declared here

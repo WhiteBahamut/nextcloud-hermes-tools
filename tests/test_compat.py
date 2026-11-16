@@ -100,29 +100,31 @@ def test_check_versions_hermes_outside_tested_line_warns(monkeypatch, caplog, he
     )
 
 
-def test_check_versions_hermes_unknown_warns(monkeypatch, caplog, nc):
+def test_check_versions_hermes_unknown_logs_info(monkeypatch, caplog, nc):
     _patch_hermes_raises(monkeypatch, PackageNotFoundError("hermes-agent"))
     nc.handler = _status("35.0.2.2")
     with caplog.at_level(logging.DEBUG, logger=PKG_LOGGER):
         compat.check_versions()
     assert any(
-        r.levelno == logging.WARNING and "could not determine the Hermes agent version" in r.getMessage()
+        r.levelno == logging.INFO
+        and "could not determine the Hermes agent version" in r.getMessage()
+        and "verified compatible" in r.getMessage()
         for r in caplog.records
     )
 
 
-def test_check_versions_status_http_error_warns(monkeypatch, caplog, nc):
+def test_check_versions_status_http_error_logs_info(monkeypatch, caplog, nc):
     _patch_hermes(monkeypatch, "0.23.0")
     nc.handler = lambda req: httpx.Response(404, text="not found")
     with caplog.at_level(logging.DEBUG, logger=PKG_LOGGER):
         compat.check_versions()
     assert any(
-        r.levelno == logging.WARNING and "could not determine the Nextcloud server version" in r.getMessage()
+        r.levelno == logging.INFO and "could not determine the Nextcloud server version" in r.getMessage()
         for r in caplog.records
     )
 
 
-def test_check_versions_transport_error_warns_and_never_raises(monkeypatch, caplog, nc):
+def test_check_versions_transport_error_logs_info_and_never_raises(monkeypatch, caplog, nc):
     _patch_hermes(monkeypatch, "0.23.0")
 
     def _boom(req):
@@ -132,8 +134,25 @@ def test_check_versions_transport_error_warns_and_never_raises(monkeypatch, capl
     with caplog.at_level(logging.DEBUG, logger=PKG_LOGGER):
         assert compat.check_versions() is None
     assert any(
-        r.levelno == logging.WARNING and "could not determine the Nextcloud server version" in r.getMessage()
+        r.levelno == logging.INFO and "could not determine the Nextcloud server version" in r.getMessage()
         for r in caplog.records
+    )
+
+
+def test_check_versions_hermes_placeholder_000_logs_info(monkeypatch, caplog, nc):
+    _patch_hermes(monkeypatch, "0.0.0")
+    nc.handler = _status("35.0.2.2")
+    with caplog.at_level(logging.DEBUG, logger=PKG_LOGGER):
+        compat.check_versions()
+    assert any(
+        r.levelno == logging.INFO
+        and "could not determine the Hermes agent version" in r.getMessage()
+        and "0.0.0" in r.getMessage()
+        and "verified compatible" in r.getMessage()
+        for r in caplog.records
+    )
+    assert not any(
+        r.levelno >= logging.WARNING and "Hermes" in r.getMessage() for r in caplog.records
     )
 
 
@@ -160,7 +179,7 @@ def test_check_versions_never_raises(monkeypatch, caplog):
     with caplog.at_level(logging.DEBUG, logger=PKG_LOGGER):
         assert compat.check_versions() is None
     assert any(
-        r.levelno == logging.WARNING and "could not determine the Nextcloud server version" in r.getMessage()
+        r.levelno == logging.INFO and "could not determine the Nextcloud server version" in r.getMessage()
         for r in caplog.records
     )
     assert "boom" in caplog.text  # the (redacted) cause is logged

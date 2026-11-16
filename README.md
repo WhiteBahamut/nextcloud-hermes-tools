@@ -24,10 +24,10 @@ All 50 tools live in the `nextcloud` toolset. Every handler returns a JSON strin
 
 ## Requirements
 
-- [Hermes Agent](https://github.com/NousResearch/hermes-agent) installed and running
+- [Hermes Agent](https://github.com/NousResearch/hermes-agent) **v0.23.x** — verified compatible and enforced via `requires_hermes: ">=0.23.0"` in `plugin.yaml` (tested line `HERMES_TESTED` in `src/compat.py`)
 - Python 3.10+ (Hermes host provides this)
 - `httpx` (core Hermes dependency, always present in-host)
-- A Nextcloud instance with an app password for the bot account
+- A Nextcloud instance **v33–35** (tested range `NC_TESTED_MAJOR_MIN/MAX` in `src/compat.py`) with an app password for the bot account
 
 ## Tools
 
