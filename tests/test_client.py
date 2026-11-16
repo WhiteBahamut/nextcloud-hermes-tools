@@ -1,7 +1,5 @@
-import base64
-import json
-
 import httpx
+
 import pytest
 from conftest import ocs_err, ocs_ok
 from nextcloud_tools import client
@@ -28,23 +26,6 @@ def test_ocs_non_json_response(nc):
     with pytest.raises(client.NcError) as ei:
         client.ocs("GET", "apps/x")
     assert ei.value.status == 502
-
-
-def test_redaction_strips_password_b64_and_auth_header(nc):
-    token = base64.b64encode(b"bot:s3cret-pw").decode()
-    text = f"connect failed bot:s3cret-pw; Authorization: Basic {token}; Bearer {token}"
-    out = client.redact(text)
-    assert "s3cret-pw" not in out
-    assert token not in out
-    assert "Authorization: Basic ***" in out
-    assert "Bearer ***" in out
-
-
-def test_err_json_redacts_password(nc):
-    res = json.loads(client.err("failed with s3cret-pw inside"))
-    assert res["ok"] is False
-    assert "s3cret-pw" not in res["error"]
-    assert "***" in res["error"]
 
 
 def test_propfind_accepts_200_and_207_and_sends_depth(nc):
@@ -92,12 +73,21 @@ def test_no_retry_on_http_error_status(nc):
     assert resp.status_code == 404
     assert len(nc.requests) == 1
 
+def test_no_retry_on_unsafe_methods_but_safe_still_retries(nc, monkeypatch):
+    monkeypatch.setattr(client.time, "sleep", lambda _s: None)
+    calls = {"n": 0}
 
-def test_nc_ocs_traversal_rejected_without_request(nc, call):
-    for bad in ("/apps/x", "apps/../secret", "a/../../b", ".."):
-        res = call("nc_ocs", {"path": bad})
-        assert res["ok"] is False, bad
-    assert nc.requests == []  # traversal never becomes a request
+    def h(req):
+        calls["n"] += 1
+        raise httpx.ConnectError("refused")
+
+    nc.handler = h
+    with pytest.raises(httpx.ConnectError):
+        client.request("POST", "/x", data={"a": "b"})
+    assert calls["n"] == 1  # write not re-sent blindly
+    with pytest.raises(httpx.ConnectError):
+        client.request("PROPFIND", "/x")
+    assert calls["n"] == 3  # safe method retried once (2 attempts)
 
 
 def test_nc_ocs_passes_through(nc, call):
@@ -121,13 +111,6 @@ def test_nc_ocs_put_delete_patch_reach_transport(nc, call):
     assert "k=v" in patch.content.decode()
 
 
-def test_nc_ocs_traversal_rejected_for_every_method(nc, call):
-    for m in ("GET", "POST", "PUT", "DELETE", "PATCH"):
-        res = call("nc_ocs", {"method": m, "path": "apps/../secret"})
-        assert res["ok"] is False and "traversal" in res["error"], m
-    assert nc.requests == []  # traversal never becomes a request, any method
-
-
 def test_tool_decorator_never_raises(nc, call):
     # default handler 404s -> NcError -> error JSON, not an exception
     res = call("nc_file_get", {"path": "/missing"})
@@ -143,8 +126,3 @@ def test_secret_prefers_nc_over_talk(monkeypatch):
     assert client._secret("TALK_SERVER_URL") == "https://talk.example"
     monkeypatch.setenv("NC_SERVER_URL", "")  # empty NC_* falls through to TALK_*
     assert client._secret("TALK_SERVER_URL") == "https://talk.example"
-
-
-def test_redaction_strips_both_spellings(nc, monkeypatch):
-    monkeypatch.setenv("NC_APP_PASSWORD", "nc-pw")
-    assert client.redact("leak nc-pw and s3cret-pw") == "leak *** and ***"

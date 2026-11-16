@@ -7,25 +7,15 @@ import json
 import logging
 
 import httpx
-import pytest
 
 import conftest
-from conftest import FakeCtx, multistatus
+from conftest import FILES_DAV, FakeCtx, PKG_LOGGER, multistatus
 from nextcloud_tools import client, guardrails
-
-PKG_LOGGER = "nextcloud_tools"
-FILES = "/remote.php/dav/files/bot"
-
-
-@pytest.fixture(autouse=True)
-def _restore_package_logger_level():
-    yield
-    logging.getLogger(PKG_LOGGER).setLevel(logging.NOTSET)
 
 
 def test_tool_wrapper_logs_ok_at_info(nc, call, caplog):
     nc.handler = lambda req: multistatus([
-        (f"{FILES}/", '<d:resourcetype><d:collection/></d:resourcetype><oc:fileid>1</oc:fileid>'),
+        (f"{FILES_DAV}/", '<d:resourcetype><d:collection/></d:resourcetype><oc:fileid>1</oc:fileid>'),
     ])
     with caplog.at_level(logging.DEBUG, logger=PKG_LOGGER):
         res = call("nc_file_list", {"path": "/"})

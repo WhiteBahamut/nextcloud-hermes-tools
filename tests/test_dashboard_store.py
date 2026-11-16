@@ -11,123 +11,76 @@ def test_list_tool_names_returns_49_in_manifest_order():
     assert all(n.startswith("nc_") for n in names)
 
 
-def test_get_disabled_tools_tolerates_missing_or_wrong_typed_sections():
-    assert dashboard_store.get_disabled_tools({}) == []
-    assert dashboard_store.get_disabled_tools({"plugins": None}) == []
-    assert dashboard_store.get_disabled_tools({"plugins": {"entries": None}}) == []
+@pytest.mark.parametrize("getter,key", [
+    (dashboard_store.get_disabled_tools, "disabled_tools"),
+    (dashboard_store.get_ungated_tools, "ungated_tools"),
+])
+def test_get_tools_tolerates_missing_or_wrong_typed_sections(getter, key):
+    assert getter({}) == []
+    assert getter({"plugins": None}) == []
+    assert getter({"plugins": {"entries": None}}) == []
     cfg = {"plugins": {"entries": {"nextcloud-tools": {"settings": None}}}}
-    assert dashboard_store.get_disabled_tools(cfg) == []
-    cfg = {"plugins": {"entries": {"nextcloud-tools": {"settings": {"disabled_tools": "oops"}}}}}
-    assert dashboard_store.get_disabled_tools(cfg) == []
+    assert getter(cfg) == []
+    cfg = {"plugins": {"entries": {"nextcloud-tools": {"settings": {key: "oops"}}}}}
+    assert getter(cfg) == []
 
 
-def test_get_disabled_tools_reads_nested_list():
-    cfg = {"plugins": {"entries": {"nextcloud-tools": {"settings": {"disabled_tools": ["nc_file_delete"]}}}}}
-    assert dashboard_store.get_disabled_tools(cfg) == ["nc_file_delete"]
+@pytest.mark.parametrize("getter,key,sample", [
+    (dashboard_store.get_disabled_tools, "disabled_tools", "nc_file_delete"),
+    (dashboard_store.get_ungated_tools, "ungated_tools", "nc_file_put"),
+])
+def test_get_tools_reads_nested_list(getter, key, sample):
+    cfg = {"plugins": {"entries": {"nextcloud-tools": {"settings": {key: [sample]}}}}}
+    assert getter(cfg) == [sample]
 
 
-def test_set_tool_enabled_roundtrip_sorted_idempotent():
+@pytest.mark.parametrize("setter,key,first", [
+    (dashboard_store.set_tool_enabled, "disabled_tools", "nc_file_delete"),
+    (dashboard_store.set_tool_guarded, "ungated_tools", "nc_file_put"),
+])
+def test_set_tool_flag_roundtrip_sorted_idempotent(setter, key, first):
     config = {}
-    assert dashboard_store.set_tool_enabled(config, "nc_file_delete", False) == ["nc_file_delete"]
-    assert config["plugins"]["entries"]["nextcloud-tools"]["settings"]["disabled_tools"] == [
-        "nc_file_delete"
-    ]
-    # second disable keeps the list sorted
-    assert dashboard_store.set_tool_enabled(config, "nc_cal_delete", False) == [
-        "nc_cal_delete",
-        "nc_file_delete",
-    ]
+    assert setter(config, first, False) == [first]
+    assert config["plugins"]["entries"]["nextcloud-tools"]["settings"][key] == [first]
+    # second call keeps the list sorted
+    assert setter(config, "nc_cal_delete", False) == ["nc_cal_delete", first]
     # idempotent
-    assert dashboard_store.set_tool_enabled(config, "nc_cal_delete", False) == [
-        "nc_cal_delete",
-        "nc_file_delete",
-    ]
-    # enable removes
-    assert dashboard_store.set_tool_enabled(config, "nc_file_delete", True) == ["nc_cal_delete"]
-    assert dashboard_store.set_tool_enabled(config, "nc_cal_delete", True) == []
+    assert setter(config, "nc_cal_delete", False) == ["nc_cal_delete", first]
+    # re-enabling removes
+    assert setter(config, first, True) == ["nc_cal_delete"]
+    assert setter(config, "nc_cal_delete", True) == []
     # enabling a never-disabled tool is a no-op
-    assert dashboard_store.set_tool_enabled(config, "nc_file_list", True) == []
+    assert setter(config, "nc_file_list", True) == []
 
 
-def test_set_tool_enabled_rejects_unknown_name_before_mutating():
+@pytest.mark.parametrize("setter,key", [
+    (dashboard_store.set_tool_enabled, "disabled_tools"),
+    (dashboard_store.set_tool_guarded, "ungated_tools"),
+])
+def test_set_tool_flag_rejects_unknown_name_before_mutating(setter, key):
     config = {}
     with pytest.raises(ValueError):
-        dashboard_store.set_tool_enabled(config, "nc_not_a_tool", False)
+        setter(config, "nc_not_a_tool", False)
     assert config == {}
 
 
-def test_set_tool_enabled_preserves_sibling_settings():
+@pytest.mark.parametrize("setter,key", [
+    (dashboard_store.set_tool_enabled, "disabled_tools"),
+    (dashboard_store.set_tool_guarded, "ungated_tools"),
+])
+def test_set_tool_flag_preserves_sibling_settings(setter, key):
     config = {
         "plugins": {
             "entries": {
-                "nextcloud-tools": {"settings": {"max_results": 5, "disabled_tools": ["nc_ocs"]}}
+                "nextcloud-tools": {"settings": {"max_results": 5, key: ["nc_ocs"]}}
             }
         }
     }
-    assert dashboard_store.set_tool_enabled(config, "nc_ocs", True) == []
+    assert setter(config, "nc_ocs", True) == []
     settings = config["plugins"]["entries"]["nextcloud-tools"]["settings"]
     assert settings["max_results"] == 5
-    assert settings["disabled_tools"] == []
+    assert settings[key] == []
 
-
-
-def test_get_ungated_tools_tolerates_missing_or_wrong_typed_sections():
-    assert dashboard_store.get_ungated_tools({}) == []
-    assert dashboard_store.get_ungated_tools({"plugins": None}) == []
-    assert dashboard_store.get_ungated_tools({"plugins": {"entries": None}}) == []
-    cfg = {"plugins": {"entries": {"nextcloud-tools": {"settings": None}}}}
-    assert dashboard_store.get_ungated_tools(cfg) == []
-    cfg = {"plugins": {"entries": {"nextcloud-tools": {"settings": {"ungated_tools": "oops"}}}}}
-    assert dashboard_store.get_ungated_tools(cfg) == []
-
-
-def test_get_ungated_tools_reads_nested_list():
-    cfg = {"plugins": {"entries": {"nextcloud-tools": {"settings": {"ungated_tools": ["nc_file_put"]}}}}}
-    assert dashboard_store.get_ungated_tools(cfg) == ["nc_file_put"]
-
-
-def test_set_tool_guarded_roundtrip_sorted_idempotent():
-    config = {}
-    assert dashboard_store.set_tool_guarded(config, "nc_file_put", False) == ["nc_file_put"]
-    assert config["plugins"]["entries"]["nextcloud-tools"]["settings"]["ungated_tools"] == [
-        "nc_file_put"
-    ]
-    # second ungate keeps the list sorted
-    assert dashboard_store.set_tool_guarded(config, "nc_cal_delete", False) == [
-        "nc_cal_delete",
-        "nc_file_put",
-    ]
-    # idempotent
-    assert dashboard_store.set_tool_guarded(config, "nc_cal_delete", False) == [
-        "nc_cal_delete",
-        "nc_file_put",
-    ]
-    # re-guard removes
-    assert dashboard_store.set_tool_guarded(config, "nc_file_put", True) == ["nc_cal_delete"]
-    assert dashboard_store.set_tool_guarded(config, "nc_cal_delete", True) == []
-    # guarding a never-ungated tool is a no-op
-    assert dashboard_store.set_tool_guarded(config, "nc_file_list", True) == []
-
-
-def test_set_tool_guarded_rejects_unknown_name_before_mutating():
-    config = {}
-    with pytest.raises(ValueError):
-        dashboard_store.set_tool_guarded(config, "nc_not_a_tool", False)
-    assert config == {}
-
-
-def test_set_tool_guarded_preserves_sibling_settings():
-    config = {
-        "plugins": {
-            "entries": {
-                "nextcloud-tools": {"settings": {"max_results": 5, "ungated_tools": ["nc_ocs"]}}
-            }
-        }
-    }
-    assert dashboard_store.set_tool_guarded(config, "nc_ocs", True) == []
-    settings = config["plugins"]["entries"]["nextcloud-tools"]["settings"]
-    assert settings["max_results"] == 5
-    assert settings["ungated_tools"] == []
 
 def test_classify_gate_static_labels():
     assert dashboard_store.classify_gate("nc_file_list") == "read"

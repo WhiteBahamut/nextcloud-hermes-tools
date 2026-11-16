@@ -10,6 +10,7 @@
 
 import importlib.util
 import json
+import logging
 import sys
 from pathlib import Path
 
@@ -27,6 +28,15 @@ sys.modules["nextcloud_tools"] = pkg
 _spec.loader.exec_module(pkg)
 
 from nextcloud_tools import client  # noqa: E402
+
+PKG_LOGGER = "nextcloud_tools"
+
+FILES_DAV = "/remote.php/dav/files/bot"
+CAL_DAV = "/remote.php/dav/calendars/bot/personal"
+TASKS_DAV = "/remote.php/dav/calendars/bot/tasks"
+BOOK_DAV = "/remote.php/dav/addressbooks/users/bot/contacts"
+NOTES_API = "/index.php/apps/notes/api/v1/notes"
+TRASH_DAV = "/remote.php/dav/trashbin/bot/trash"
 
 
 class FakeCtx:
@@ -122,13 +132,23 @@ def multistatus(responses):
     return httpx.Response(207, text=body, headers={"Content-Type": "application/xml; charset=utf-8"})
 
 
+@pytest.fixture(autouse=True)
+def _reset_pkg_logger_level():
+    yield
+    logging.getLogger(PKG_LOGGER).setLevel(logging.NOTSET)
+
+
+def patch_get_client(monkeypatch, mock):
+    """Point client.get_client at a MockTransport-backed client; returns mock."""
+    http = httpx.Client(base_url="https://nc.example", transport=httpx.MockTransport(mock),
+                        headers={"OCS-APIRequest": "true", "Accept": "application/json"})
+    monkeypatch.setattr(client, "get_client", lambda: http)
+    return mock
+
+
 @pytest.fixture()
 def nc(monkeypatch, fake_ctx):
     monkeypatch.setenv("TALK_SERVER_URL", "https://nc.example")
     monkeypatch.setenv("TALK_USER", "bot")
     monkeypatch.setenv("TALK_APP_PASSWORD", "s3cret-pw")
-    mock = MockNc()
-    http = httpx.Client(base_url="https://nc.example", transport=httpx.MockTransport(mock),
-                        headers={"OCS-APIRequest": "true", "Accept": "application/json"})
-    monkeypatch.setattr(client, "get_client", lambda: http)
-    return mock
+    return patch_get_client(monkeypatch, MockNc())

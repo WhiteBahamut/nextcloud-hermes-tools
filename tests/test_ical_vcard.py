@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from nextcloud_tools import ical, vcard
+from nextcloud_tools import ical, tools_cal, vcard
 
 
 def test_unfold_and_parse_content_line():
@@ -104,3 +104,150 @@ def test_is_date_only_and_dt_style():
     assert ical.dt_style(datetime(2026, 11, 16, 9, tzinfo=tz.utc)) == "z"
     assert ical.dt_style(datetime(2026, 11, 16, 9, tzinfo=tz(timedelta(hours=2)))) == "offset"
     assert ical.dt_style(datetime(2026, 11, 16, 9)) == "floating"
+
+
+# --- component stack (VALARM) ---
+
+
+def test_parse_ics_valarm_does_not_drop_parent_props():
+    from nextcloud_tools import ical
+
+    comps = ical.parse_ics(
+        "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:u1\r\nSUMMARY:Before\r\n"
+        "BEGIN:VALARM\r\nACTION:DISPLAY\r\nEND:VALARM\r\n"
+        "DESCRIPTION:After alarm\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+    )
+    vevent = ical.first_component(comps, "VEVENT")
+    assert ical.prop(vevent, "UID") == "u1"
+    assert ical.prop(vevent, "SUMMARY") == "Before"
+    assert ical.prop(vevent, "DESCRIPTION") == "After alarm"
+    alarm = ical.first_component(comps, "VALARM")  # flat list shape preserved
+    assert alarm is not None and ical.prop(alarm, "ACTION") == "DISPLAY"
+
+
+def test_parse_ics_nests_valarm_in_parent_components():
+    from nextcloud_tools import ical
+
+    comps = ical.parse_ics(
+        "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:u2\r\nSUMMARY:S\r\n"
+        "BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT15M\r\nEND:VALARM\r\n"
+        "END:VEVENT\r\nEND:VCALENDAR\r\n"
+    )
+    vevent = ical.first_component(comps, "VEVENT")
+    assert len(vevent["components"]) == 1
+    alarm = vevent["components"][0]
+    assert alarm["type"] == "VALARM" and ical.prop(alarm, "TRIGGER") == "-PT15M"
+    assert ical.first_component(comps, "VALARM") is alarm  # still in the flat list
+
+
+def test_serialize_component_emits_nested_valarm_roundtrip():
+    from nextcloud_tools import ical
+
+    text = (
+        "BEGIN:VEVENT\r\nUID:u3\r\nSUMMARY:S\r\n"
+        "BEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:D\r\nTRIGGER:-PT5M\r\nEND:VALARM\r\n"
+        "END:VEVENT\r\n"
+    )
+    vevent = ical.first_component(ical.parse_ics(text), "VEVENT")
+    out = ical.serialize_component(vevent)
+    assert out.index("BEGIN:VALARM") < out.index("END:VALARM") < out.index("END:VEVENT")
+    reparsed = ical.first_component(ical.parse_ics("\r\n".join(out)), "VEVENT")
+    assert len(reparsed["components"]) == 1
+    assert ical.prop(reparsed["components"][0], "TRIGGER") == "-PT5M"
+
+
+# --- RRULE expansion (ical.expand_rrule) ---
+
+
+def test_rrule_daily_count():
+    occ = ical.expand_rrule(datetime(2026, 11, 2, 9), "FREQ=DAILY;COUNT=3")
+    assert [o.day for o in occ] == [2, 3, 4]
+
+
+def test_rrule_daily_interval():
+    occ = ical.expand_rrule(datetime(2026, 11, 2, 9), "FREQ=DAILY;INTERVAL=2;COUNT=3")
+    assert [o.day for o in occ] == [2, 4, 6]
+
+
+def test_rrule_weekly_byday():
+    # 2026-11-02 is a Monday
+    occ = ical.expand_rrule(datetime(2026, 11, 2, 9), "FREQ=WEEKLY;BYDAY=MO,WE;COUNT=4")
+    assert [o.strftime("%a") for o in occ] == ["Mon", "Wed", "Mon", "Wed"]
+
+
+def test_rrule_monthly_until_skips_invalid_days():
+    occ = ical.expand_rrule(datetime(2026, 1, 31, 9), "FREQ=MONTHLY;UNTIL=20260430T235959Z")
+    assert [o.date().isoformat() for o in occ] == ["2026-01-31", "2026-03-31"]  # Feb 31 / Apr 31 skipped
+
+
+def test_rrule_exdate_and_range_filter():
+    occ = ical.expand_rrule(
+        datetime(2026, 11, 2, 9), "FREQ=DAILY;COUNT=5",
+        range_start=datetime(2026, 11, 3), range_end=datetime(2026, 11, 5, 23, 59),
+        exdates=[({}, "20261104T090000")],
+    )
+    assert [o.day for o in occ] == [3, 5]  # 4th excluded via EXDATE
+
+
+def test_rrule_exdate_from_parse_ics():
+    # regression: parse_ics stores props as (params, value); expand_rrule must unpack in that order
+    ics = (
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:x1\r\nDTSTAMP:20261101T000000Z\r\n"
+        "DTSTART;TZID=Europe/Berlin:20261102T090000\r\nDTEND;TZID=Europe/Berlin:20261102T100000\r\n"
+        "RRULE:FREQ=DAILY;COUNT=5\r\nEXDATE;TZID=Europe/Berlin:20261104T090000\r\n"
+        "END:VEVENT\r\nEND:VCALENDAR\r\n"
+    )
+    vevent = ical.first_component(ical.parse_ics(ics), "VEVENT")
+    dt_p, dt_v = ical.prop_with_params(vevent, "DTSTART")
+    occ = ical.expand_rrule(
+        ical.parse_dt(dt_v, dt_p),
+        ical.prop(vevent, "RRULE"),
+        exdates=vevent["props"]["EXDATE"],
+    )
+    assert [o.day for o in occ] == [2, 3, 5, 6]  # 4th excluded, no exception
+
+
+def test_event_dict_exdate_end_to_end():
+    ics = (
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:x2\r\nDTSTAMP:20261101T000000Z\r\n"
+        "DTSTART:20261102T090000Z\r\nDTEND:20261102T100000Z\r\n"
+        "RRULE:FREQ=DAILY;COUNT=4\r\nEXDATE:20261104T090000Z\r\n"
+        "END:VEVENT\r\nEND:VCALENDAR\r\n"
+    )
+    vevent = ical.first_component(ical.parse_ics(ics), "VEVENT")
+    ev = tools_cal._event_dict(vevent, None, None)
+    assert [o["start"][:10] for o in ev["occurrences"]] == ["2026-11-02", "2026-11-03", "2026-11-05"]
+
+
+def test_rrule_capped_at_500():
+    occ = ical.expand_rrule(datetime(2026, 1, 1, 9), "FREQ=DAILY", range_end=datetime(2030, 1, 1))
+    assert len(occ) == 500
+
+
+# --- vcard edge cases ---
+
+
+def test_vcard_unfold_cdata_group_prefix():
+    raw = (
+        "<![CDATA[BEGIN:VCARD\r\nVERSION:4.0\r\nUID:u9\r\nFN:J\xc3\xb6rg M\xc3\xbcller\r\n"
+        "item1.EMAIL:a@b.c\r\nTEL;TYPE=CELL:+49 30\r\nORG:Acme\\;HQ\r\nEND:VCARD]]>"
+    ).encode("latin-1").decode("utf-8")
+    card = vcard.parse_vcard(raw)
+    assert card["uid"] == "u9"
+    assert card["emails"] == ["a@b.c"]  # group prefix item1. normalized away
+    assert card["phones"] == ["+49 30"]
+    assert card["org"] == "Acme\\;HQ"
+
+
+def test_vcard_folded_line_unfolds():
+    raw = "BEGIN:VCARD\r\nVERSION:4.0\r\nUID:u\r\nFN:Very Long Name That Was Fold\r\n ed Across Lines\r\nEND:VCARD\r\n"
+    card = vcard.parse_vcard(raw)
+    assert card["fn"] == "Very Long Name That Was Folded Across Lines"
+
+
+def test_build_vcard_roundtrip_utf8():
+    text = vcard.build_vcard(fn="Müller, Jörg", email="j@x.de", phone="+49", uid="u1")
+    card = vcard.parse_vcard(text)
+    assert card["fn"] == "Müller\\, Jörg"  # escaped on build; non-ASCII preserved as UTF-8
+    assert card["uid"] == "u1" and card["emails"] == ["j@x.de"]
+    assert "VERSION:4.0" in text and "FN:" in text

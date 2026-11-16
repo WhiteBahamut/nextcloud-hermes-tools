@@ -1,14 +1,15 @@
-import httpx
-from conftest import multistatus
+import base64 as b64
+import hashlib
 
-FILES = "/remote.php/dav/files/bot"
+import httpx
+from conftest import FILES_DAV, multistatus
 
 
 def test_file_list_parses_multistatus(nc, call):
     nc.handler = lambda req: multistatus([
-        (f"{FILES}/", '<d:resourcetype><d:collection/></d:resourcetype><oc:fileid>1</oc:fileid>'),
-        (f"{FILES}/Docs", '<d:resourcetype><d:collection/></d:resourcetype><d:getlastmodified>Mon, 02 Nov 2026 10:00:00 GMT</d:getlastmodified>'),
-        (f"{FILES}/a%20b.txt", '<d:resourcetype/><d:getcontentlength>5</d:getcontentlength><d:getcontenttype>text/plain</d:getcontenttype><d:getetag>&quot;e1&quot;</d:getetag>'),
+        (f"{FILES_DAV}/", '<d:resourcetype><d:collection/></d:resourcetype><oc:fileid>1</oc:fileid>'),
+        (f"{FILES_DAV}/Docs", '<d:resourcetype><d:collection/></d:resourcetype><d:getlastmodified>Mon, 02 Nov 2026 10:00:00 GMT</d:getlastmodified>'),
+        (f"{FILES_DAV}/a%20b.txt", '<d:resourcetype/><d:getcontentlength>5</d:getcontentlength><d:getcontenttype>text/plain</d:getcontenttype><d:getetag>&quot;e1&quot;</d:getetag>'),
     ])
     res = call("nc_file_list", {"path": "/"})
     assert res["ok"] and res["count"] == 2
@@ -27,7 +28,7 @@ def test_file_list_invalid_depth(nc, call):
 
 
 def test_file_list_depth_forms(nc, call):
-    nc.handler = lambda req: multistatus([(f"{FILES}/", '<d:resourcetype><d:collection/></d:resourcetype>')])
+    nc.handler = lambda req: multistatus([(f"{FILES_DAV}/", '<d:resourcetype><d:collection/></d:resourcetype>')])
     for depth, header in ((1, "1"), ("1", "1"), ("0", "0"), ("infinity", "infinity")):
         res = call("nc_file_list", {"path": "/", "depth": depth})
         assert res["ok"] and res["depth"] == str(depth), depth
@@ -42,7 +43,7 @@ def test_file_list_depth_forms(nc, call):
 
 def test_file_get_text_and_base64(nc, call):
     def h(req):
-        if req.url.path == f"{FILES}/t.txt":
+        if req.url.path == f"{FILES_DAV}/t.txt":
             return httpx.Response(200, content="héllo wörld".encode("utf-8"))
         return httpx.Response(200, content=b"\x00\x01\x02\xff")
 
@@ -119,10 +120,10 @@ def test_file_copy_happy_path_request_order_and_verify(nc, call):
     def h(req):
         p = req.url.path
         if req.method == "PROPFIND":
-            if p == f"{FILES}/src.txt":
-                return multistatus([(f"{FILES}/src.txt", '<d:resourcetype/><d:getcontenttype>text/plain</d:getcontenttype>')])
+            if p == f"{FILES_DAV}/src.txt":
+                return multistatus([(f"{FILES_DAV}/src.txt", '<d:resourcetype/><d:getcontenttype>text/plain</d:getcontenttype>')])
             return httpx.Response(404, text="nf")  # destination absent
-        if req.method == "GET" and p == f"{FILES}/src.txt":
+        if req.method == "GET" and p == f"{FILES_DAV}/src.txt":
             return httpx.Response(200, content=b"copy me")
         if req.method == "PUT":
             state[p] = req.content
@@ -142,7 +143,7 @@ def test_file_copy_happy_path_request_order_and_verify(nc, call):
 def test_file_copy_rejects_folder_source(nc, call):
     def h(req):
         if req.method == "PROPFIND":
-            return multistatus([(f"{FILES}/Docs", '<d:resourcetype><d:collection/></d:resourcetype>')])
+            return multistatus([(f"{FILES_DAV}/Docs", '<d:resourcetype><d:collection/></d:resourcetype>')])
         return httpx.Response(404, text="nf")
 
     nc.handler = h
@@ -155,8 +156,8 @@ def test_file_copy_destination_exists_without_overwrite(nc, call):
     def h(req):
         p = req.url.path
         if req.method == "PROPFIND":
-            if p == f"{FILES}/src.txt":
-                return multistatus([(f"{FILES}/src.txt", '<d:resourcetype/>')])
+            if p == f"{FILES_DAV}/src.txt":
+                return multistatus([(f"{FILES_DAV}/src.txt", '<d:resourcetype/>')])
             return multistatus([(p, '<d:resourcetype/>')])  # destination exists
         if req.method == "GET":
             return httpx.Response(200, content=b"data")
@@ -180,8 +181,8 @@ def test_file_copy_readback_mismatch_fails(nc, call):
     def h(req):
         p = req.url.path
         if req.method == "PROPFIND":
-            return multistatus([(f"{FILES}/src.txt", '<d:resourcetype/>')]) if p == f"{FILES}/src.txt" else httpx.Response(404, text="nf")
-        if req.method == "GET" and p == f"{FILES}/src.txt":
+            return multistatus([(f"{FILES_DAV}/src.txt", '<d:resourcetype/>')]) if p == f"{FILES_DAV}/src.txt" else httpx.Response(404, text="nf")
+        if req.method == "GET" and p == f"{FILES_DAV}/src.txt":
             return httpx.Response(200, content=b"original")
         if req.method == "PUT":
             return httpx.Response(201)
@@ -196,7 +197,7 @@ def test_file_copy_readback_mismatch_fails(nc, call):
 
 
 def test_move_423_fallback_order_put_before_delete(nc, call):
-    state = {f"{FILES}/src.txt": b"data123"}
+    state = {f"{FILES_DAV}/src.txt": b"data123"}
 
     def h(req):
         p = req.url.path.rstrip("/")
@@ -211,7 +212,7 @@ def test_move_423_fallback_order_put_before_delete(nc, call):
             state.pop(p, None)
             return httpx.Response(204)
         if req.method == "PROPFIND":
-            if p in state or p == FILES:
+            if p in state or p == FILES_DAV:
                 return multistatus([(req.url.path, "<d:resourcetype/>")])
             return httpx.Response(404, text="nf")
         return httpx.Response(404, text="nf")
@@ -222,10 +223,10 @@ def test_move_423_fallback_order_put_before_delete(nc, call):
     methods = nc.methods()
     assert methods[0] == "MOVE"
     assert methods.index("PUT") < methods.index("DELETE")  # strict order: PUT before DELETE
-    assert f"{FILES}/dst.txt" in state and f"{FILES}/src.txt" not in state
+    assert f"{FILES_DAV}/dst.txt" in state and f"{FILES_DAV}/src.txt" not in state
     # Destination header is an absolute URL
     move = nc.find("MOVE", "")[0]
-    assert move.headers["Destination"] == f"https://nc.example{FILES}/dst.txt"
+    assert move.headers["Destination"] == f"https://nc.example{FILES_DAV}/dst.txt"
     assert move.headers["Overwrite"] == "T"
 
 
@@ -243,7 +244,7 @@ def test_move_plain_success(nc, call):
 
 
 def test_delete_verifies_404(nc, call):
-    state = {f"{FILES}/old.txt": b"x"}
+    state = {f"{FILES_DAV}/old.txt": b"x"}
 
     def h(req):
         p = req.url.path.rstrip("/")
@@ -256,7 +257,7 @@ def test_delete_verifies_404(nc, call):
 
     nc.handler = h
     res = call("nc_file_delete", {"path": "/old.txt"})
-    assert res["ok"] and res["verified"] is True and f"{FILES}/old.txt" not in state
+    assert res["ok"] and res["verified"] is True and f"{FILES_DAV}/old.txt" not in state
 
 
 def test_delete_still_present_fails(nc, call):
@@ -287,3 +288,76 @@ def test_mkdir_verified(nc, call):
     nc.handler = h
     res = call("nc_file_mkdir", {"path": "/NewDir"})
     assert res["ok"] and res["verified"] is True
+
+
+# --- nc_file_get max_bytes ---
+
+
+def test_file_get_truncates_to_default_max_bytes(nc, call):
+    nc.handler = lambda req: httpx.Response(200, content=b"x" * 300_000, headers={"etag": '"e1"'})
+    res = call("nc_file_get", {"path": "/big.txt"})
+    assert res["ok"] and res["truncated"] is True and res["max_bytes"] == 100000
+    assert res["size"] == 300_000 and len(res["content"]) == 100_000 and res["etag"] == '"e1"'
+
+
+def test_file_get_max_bytes_zero_is_unlimited(nc, call):
+    nc.handler = lambda req: httpx.Response(200, content=b"x" * 300_000)
+    res = call("nc_file_get", {"path": "/big.txt", "max_bytes": 0})
+    assert res["ok"] and "truncated" not in res and len(res["content"]) == 300_000
+
+
+def test_file_get_negative_max_bytes_rejected_before_request(nc, call):
+    res = call("nc_file_get", {"path": "/a.txt", "max_bytes": -5})
+    assert res["ok"] is False and nc.requests == []
+
+
+def test_file_get_truncated_binary_slice_falls_back_to_base64(nc, call):
+    nc.handler = lambda req: httpx.Response(200, content=b"\xff\xfe" * 100_000)
+    res = call("nc_file_get", {"path": "/bin.dat", "max_bytes": 100})
+    assert res["ok"] and res["truncated"] is True and res["size"] == 200_000
+    assert "content" not in res and b64.b64decode(res["content_base64"]) == b"\xff\xfe" * 50
+
+
+# --- put verification (OC-Checksum) ---
+
+
+def test_put_verified_uses_oc_checksum_header_without_get(nc, call):
+    def h(req):
+        if req.method == "PUT":
+            assert req.headers["OC-Checksum"].startswith("SHA256:")
+            digest = hashlib.sha256(req.content).hexdigest()
+            return httpx.Response(201, headers={"OC-Checksum": f"SHA256:{digest}"})
+        return httpx.Response(404, text="nf")  # a GET here would fail the call
+
+    nc.handler = h
+    res = call("nc_file_put", {"path": "/x.txt", "content": "hello"})
+    assert res["ok"] and res["verified"]
+    assert [r.method for r in nc.requests] == ["PUT"]  # no read-back re-download
+
+
+def test_put_verified_checksum_mismatch_fails(nc, call):
+    def h(req):
+        if req.method == "PUT":
+            return httpx.Response(201, headers={"OC-Checksum": "SHA256:" + "0" * 64})
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_file_put", {"path": "/x.txt", "content": "hello"})
+    assert res["ok"] is False and res.get("status") == 500 and "OC-Checksum" in res["error"]
+
+
+def test_put_verified_falls_back_to_get_when_header_absent(nc, call):
+    state = {}
+
+    def h(req):
+        if req.method == "PUT":
+            state[req.url.path] = req.content
+            return httpx.Response(201)  # no OC-Checksum echo
+        if req.method == "GET":
+            return httpx.Response(200, content=state[req.url.path])
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_file_put", {"path": "/x.txt", "content": "hello"})
+    assert res["ok"] and res["verified"]
+    assert [r.method for r in nc.requests] == ["PUT", "GET"]
