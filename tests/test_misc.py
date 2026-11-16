@@ -311,3 +311,33 @@ def test_file_unlock_traversal_path_rejected_before_request(nc, call):
     res = call("nc_file_unlock", {"path": "/../x"})
     assert res["ok"] is False
     assert nc.requests == []
+
+
+def test_version_returns_only_version_fields(nc, call):
+    nc.handler = lambda req: httpx.Response(200, json={
+        "installed": True, "maintenance": False, "needsDbUpgrade": False,
+        "version": "35.0.2.2", "versionstring": "35.0.2", "edition": "",
+        "productname": "Nextcloud", "extendedSupport": False,
+    })
+    res = call("nc_version", {})
+    assert res == {"ok": True, "version": "35.0.2.2", "versionstring": "35.0.2"}
+    reqs = nc.find("GET", "/status.php")
+    assert len(reqs) == 1 and len(nc.requests) == 1
+
+
+def test_version_non_200_returns_err(nc, call):
+    nc.handler = lambda req: httpx.Response(503, text="down")
+    res = call("nc_version", {})
+    assert res["ok"] is False and "503" in res["error"]
+
+
+def test_version_non_dict_json_returns_err(nc, call):
+    nc.handler = lambda req: httpx.Response(200, json=["not", "a", "dict"])
+    res = call("nc_version", {})
+    assert res["ok"] is False
+
+
+def test_version_missing_version_field_returns_err(nc, call):
+    nc.handler = lambda req: httpx.Response(200, json={"installed": True})
+    res = call("nc_version", {})
+    assert res["ok"] is False and "version" in res["error"]

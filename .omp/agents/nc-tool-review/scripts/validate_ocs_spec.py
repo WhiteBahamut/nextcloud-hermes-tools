@@ -147,6 +147,12 @@ class MockServer:
                 return httpx.Response(404, text="gone")
             return httpx.Response(207, text=multistatus_body(path), headers={"Content-Type": "application/xml; charset=utf-8"})
         if method == "GET":
+            if path == "/status.php":  # public root endpoint, flat JSON (no OCS envelope)
+                return httpx.Response(200, json={
+                    "installed": True, "maintenance": False, "needsDbUpgrade": False,
+                    "version": "35.0.2.2", "versionstring": "35.0.2", "edition": "",
+                    "productname": "Nextcloud", "extendedSupport": False,
+                })
             if path in self.files:
                 return httpx.Response(200, content=self.files[path])
             if path.startswith("/remote.php/dav/"):
@@ -378,8 +384,12 @@ def main() -> int:
         elif path.startswith("/remote.php/dav/") or path.startswith("/index.php/"):
             check(f"non-OCS request shape: {method} {path}", method in {"GET", "PUT", "DELETE", "MKCOL", "MOVE", "PROPFIND", "REPORT", "PROPPATCH", "POST", "HEAD", "OPTIONS"}, method)
             dav_checked += 1
+        elif path == "/status.php":
+            # public root endpoint, flat JSON without OCS envelope (same path src/compat.py probes)
+            check(f"public root status endpoint: {method} {path}", method == "GET", "GET /status.php is not OCS/DAV")
+            dav_checked += 1
         else:
-            check(f"request path namespaced: {method} {path}", False, "not /ocs/v2.php/, /remote.php/dav/ or /index.php/")
+            check(f"request path namespaced: {method} {path}", False, "not /ocs/v2.php/, /remote.php/dav/, /index.php/ or /status.php")
 
     # --- validate canned OCS 200 responses against response schemas -------------------
     resp_checked = 0

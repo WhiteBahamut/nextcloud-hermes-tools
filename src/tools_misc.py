@@ -7,6 +7,7 @@
 - ``nc_ocs`` rejects leading ``/`` and any ``..`` segment BEFORE any request.
 - Tag assign/unassign verify via PROPFIND read-back.
 - ``nc_file_unlock``: DELETE /ocs/v2.php/apps/files_lock/lock/<fileId> as file owner (OCS-APIRequest header is set client-wide in client.get_client); lock state via a local PROPFIND <nc:lock/> body; folders rejected at resolution.
+- ``nc_version``: plain ``GET /status.php`` (public, flat JSON, no OCS envelope); returns only ``version``/``versionstring``.
 """
 
 from __future__ import annotations
@@ -316,6 +317,21 @@ def _ocs(args):
     return client.ok(method=method, path=path, data=result)
 
 
+def _version(args):
+    resp = client.require(client.request("GET", "/status.php"), (200,))
+    try:
+        data = resp.json()
+    except Exception:
+        raise client.NcError(resp.status_code, (resp.text or "")[:300])
+    if not isinstance(data, dict):
+        raise client.NcError(resp.status_code, "non-dict JSON body from /status.php")
+    version = data.get("version")
+    if not isinstance(version, str) or not version:
+        raise client.NcError(resp.status_code, "missing 'version' field in /status.php response")
+    versionstring = data.get("versionstring")
+    return client.ok(version=version, versionstring=versionstring if isinstance(versionstring, str) else "")
+
+
 TOOLS = [
     ("nc_activity", schemas.NC_ACTIVITY, client.tool(_activity)),
     ("nc_notifications", schemas.NC_NOTIFICATIONS, client.tool(_notifications)),
@@ -328,4 +344,5 @@ TOOLS = [
     ("nc_comments", schemas.NC_COMMENTS, client.tool(_comments)),
     ("nc_ocs", schemas.NC_OCS, client.tool(_ocs)),
     ("nc_file_unlock", schemas.NC_FILE_UNLOCK, client.tool(_file_unlock)),
+    ("nc_version", schemas.NC_VERSION, client.tool(_version)),
 ]

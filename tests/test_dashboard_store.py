@@ -3,11 +3,11 @@ import pytest
 from nextcloud_tools import dashboard_store
 
 
-def test_list_tool_names_returns_49_in_manifest_order():
+def test_list_tool_names_returns_50_in_manifest_order():
     names = dashboard_store.list_tool_names()
-    assert len(names) == 49
+    assert len(names) == 50
     assert names[0] == "nc_file_list"
-    assert names[-1] == "nc_file_unlock"
+    assert names[-1] == "nc_version"
     assert all(n.startswith("nc_") for n in names)
 
 

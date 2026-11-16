@@ -1,4 +1,4 @@
-"""JSON-Schema definitions for all 49 nextcloud-tools.
+"""JSON-Schema definitions for all 50 nextcloud-tools.
 
 One dict per tool: ``{"description": ..., "parameters": {"type": "object", ...}}``.
 Descriptions teach the model when to call each tool.
@@ -427,4 +427,9 @@ NC_FILE_UNLOCK = _s(
         "file_id": {"type": "string", "default": "", "description": "Numeric file id; resolved from `path` when omitted."},
     },
     ["path"],
+)
+
+NC_VERSION = _s(
+    "Nextcloud server version via GET /status.php: returns only 'version' (e.g. '35.0.2.2') and 'versionstring' (e.g. '35.0.2').",
+    {},
 )

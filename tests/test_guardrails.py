@@ -14,6 +14,7 @@ def test_guard_matrix():
     assert g("nc_search", {"term": "x"}) is None
     assert g("nc_note_get", {"id": "1"}) is None
     assert g("nc_trash_list", {}) is None
+    assert g("nc_version", {}) is None
     assert g("terminal", {"cmd": "ls"}) is None  # non-nc passthrough
     assert g("", {}) is None
     w = g("nc_file_put", {"path": "/a.txt"})
