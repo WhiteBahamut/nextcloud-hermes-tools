@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 import uuid
 
-from .ical import esc, fold, unfold
+from .ical import esc, fold, parse_content_line as _parse_content_line, unfold
 
 
 def strip_cdata(text: str) -> str:
@@ -20,27 +20,7 @@ def strip_cdata(text: str) -> str:
 
 def parse_content_line(line: str):
     """``NAME;PARAM=V:value`` -> (NAME, params, value); group prefix stripped."""
-    in_quote = False
-    idx = -1
-    for i, ch in enumerate(line):
-        if ch == '"':
-            in_quote = not in_quote
-        elif ch == ":" and not in_quote:
-            idx = i
-            break
-    if idx < 0:
-        return line.upper(), {}, ""
-    head, value = line[:idx], line[idx + 1:]
-    parts = head.split(";")
-    name = parts[0].upper()
-    if "." in name:
-        name = name.split(".", 1)[1]
-    params = {}
-    for p in parts[1:]:
-        if "=" in p:
-            k, v = p.split("=", 1)
-            params[k.upper()] = v.strip('"')
-    return name, params, value
+    return _parse_content_line(line, strip_group=True)
 
 
 def parse_vcard(text: str) -> dict:

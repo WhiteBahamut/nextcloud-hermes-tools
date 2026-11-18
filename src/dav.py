@@ -10,6 +10,7 @@ import logging
 import xml.etree.ElementTree as ET
 from urllib.parse import unquote
 
+
 log = logging.getLogger(__name__)
 
 
@@ -75,6 +76,34 @@ def entry_from_response(resp: dict, dav_prefix: str) -> dict:
         "fileid": props.get("fileid"),
         "tags": props.get("systemtags") or [],
     }
+
+
+# PROPFIND body for listing a home collection's sub-collections.
+PROPFIND_HOME = (
+    '<?xml version="1.0" encoding="utf-8"?>'
+    '<d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:displayname/></d:prop></d:propfind>'
+)
+
+
+def list_collections(home_href: str) -> list[dict]:
+    """PROPFIND Depth 1 on a home href -> [{"name", "display_name"}, ...] of its
+    collection children (the home itself excluded), sorted by name."""
+    from . import client  # deferred: dav.py stays loadable standalone (offline validation harness)
+    home = home_href.rstrip("/")
+    resp = client.propfind(home_href, depth=1, body=PROPFIND_HOME)
+    cols = []
+    for r in parse_multistatus(resp.text):
+        href = r["href"].rstrip("/")
+        if href == home or r["props"].get("resourcetype") is not True:
+            continue
+        cols.append(
+            {
+                "name": unquote(href).rstrip("/").rsplit("/", 1)[-1],
+                "display_name": r["props"].get("displayname") or "",
+            }
+        )
+    cols.sort(key=lambda c: c["name"])
+    return cols
 
 
 # PROPFIND body requesting every prop the tool modules use (files + cal + card).

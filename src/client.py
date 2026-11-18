@@ -166,34 +166,39 @@ def abs_url(path: str) -> str:
     return server + path
 
 
+def dav_base() -> str:
+    """DAV root of the Nextcloud server."""
+    return "/remote.php/dav"
+
+
+def dav_user() -> str:
+    """URL-quoted user name used in DAV hrefs."""
+    return quote(_secret("TALK_USER"), safe="")
+
+
 def files_dav(path: str = "") -> str:
     """WebDAV href of a path inside the bot's files root."""
-    user = quote(_secret("TALK_USER"), safe="")
     p = enc_path(path).strip("/")
-    base = f"/remote.php/dav/files/{user}"
+    base = f"{dav_base()}/files/{dav_user()}"
     return f"{base}/{p}" if p else f"{base}/"
 
 
 def cal_dav(calendar: str) -> str:
-    user = quote(_secret("TALK_USER"), safe="")
-    return f"/remote.php/dav/calendars/{user}/{enc_path(calendar).strip('/')}/"
+    return f"{dav_base()}/calendars/{dav_user()}/{enc_path(calendar).strip('/')}/"
 
 
 def cal_home() -> str:
     """DAV href of the user's calendar home (``/remote.php/dav/calendars/<user>/``)."""
-    user = quote(_secret("TALK_USER"), safe="")
-    return f"/remote.php/dav/calendars/{user}/"
+    return f"{dav_base()}/calendars/{dav_user()}/"
 
 
 def book_dav(book: str) -> str:
-    user = quote(_secret("TALK_USER"), safe="")
-    return f"/remote.php/dav/addressbooks/users/{user}/{enc_path(book).strip('/')}/"
+    return f"{dav_base()}/addressbooks/users/{dav_user()}/{enc_path(book).strip('/')}/"
 
 
 def book_home() -> str:
     """DAV href of the user's addressbook home (``/remote.php/dav/addressbooks/users/<user>/``)."""
-    user = quote(_secret("TALK_USER"), safe="")
-    return f"/remote.php/dav/addressbooks/users/{user}/"
+    return f"{dav_base()}/addressbooks/users/{dav_user()}/"
 
 
 # --- redaction / results -----------------------------------------------------
@@ -409,8 +414,10 @@ def dav_get(path, headers=None):
     return require(request("GET", path, headers=headers), (200,))
 
 
-def dav_put(path, content, content_type=""):
+def dav_put(path, content, content_type="", etag=None):
     headers = {"Content-Type": content_type} if content_type else None
+    if etag:
+        headers = {**(headers or {}), "If-Match": etag}
     return require(request("PUT", path, content=content, headers=headers), (200, 201, 204))
 
 

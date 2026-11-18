@@ -50,6 +50,24 @@ def _messages(args):
     return client.ok(token=args["token"], count=len(messages), messages=messages)
 
 
+def _chat_readback(token, anchor_id, done=None, attempts=3) -> list:
+    """GET the chat anchored at ``anchor_id`` (lookIntoFuture=0, limit=100) and
+    return the message list. Retries up to ``attempts`` times with 0.5 s backoff
+    until ``done(messages)`` is true; the last attempt is always returned."""
+    messages = []
+    for attempt in range(attempts):
+        data = client.ocs(
+            "GET",
+            f"{BASE}/room/{token}/chat",
+            params={"lookIntoFuture": 0, "limit": 100, "lastKnownMessageId": int(anchor_id)},
+        )
+        messages = data if isinstance(data, list) else []
+        if done is None or done(messages) or attempt == attempts - 1:
+            return messages
+        time.sleep(0.5)
+    return messages
+
+
 def _send(args):
     token = quote(str(args["token"]), safe="")
     message = args.get("message") or ""
@@ -65,17 +83,12 @@ def _send(args):
         return client.err(f"send returned no message id: {created!r}", token=args["token"])
     # read-back anchored at the new id: only messages with id > new_id-1 are
     # returned, so a busy room cannot false-negative the verification
-    for attempt in range(3):
-        data = client.ocs(
-            "GET",
-            f"{BASE}/room/{token}/chat",
-            params={"lookIntoFuture": 0, "limit": 100, "lastKnownMessageId": int(new_id) - 1},
-        )
-        ids = {m.get("id") for m in (data or []) if isinstance(m, dict)}
-        if new_id in ids:
+    for m in _chat_readback(
+        token, int(new_id) - 1,
+        done=lambda ms: any(isinstance(x, dict) and x.get("id") == new_id for x in ms),
+    ):
+        if isinstance(m, dict) and m.get("id") == new_id:
             return client.ok(token=args["token"], message_id=new_id, verified=True)
-        if attempt < 2:
-            time.sleep(0.5)
     return client.err(
         f"send verification failed: message id {new_id} not in chat read-back",
         token=args["token"],
@@ -86,19 +99,13 @@ def _delete(args):
     token = quote(str(args["token"]), safe="")
     message_id = int(args["message_id"])
     client.ocs("DELETE", f"{BASE}/room/{token}/chat/{message_id}")
-    # verify gone: read-back anchored just below the deleted id
-    for attempt in range(3):
-        data = client.ocs(
-            "GET",
-            f"{BASE}/room/{token}/chat",
-            params={"lookIntoFuture": 0, "limit": 100, "lastKnownMessageId": int(message_id) - 1},
-        )
-        ids = {m.get("id") for m in (data or []) if isinstance(m, dict)}
-        if message_id not in ids:
-            return client.ok(token=args["token"], message_id=message_id, deleted=True, verified=True)
-        if attempt < 2:
-            time.sleep(0.5)
-    return client.err(f"delete verification failed: message {message_id} still present", token=args["token"])
+    for m in _chat_readback(
+        token, int(message_id) - 1,
+        done=lambda ms: all(not (isinstance(x, dict) and x.get("id") == message_id) for x in ms),
+    ):
+        if isinstance(m, dict) and m.get("id") == message_id:
+            return client.err(f"delete verification failed: message {message_id} still present", token=args["token"])
+    return client.ok(token=args["token"], message_id=message_id, deleted=True, verified=True)
 
 
 def _react(args):
@@ -108,6 +115,32 @@ def _react(args):
     react = args.get("react", True)
     method = "POST" if react else "DELETE"
     client.ocs(method, f"{BASE}/room/{token}/chat/{message_id}/reaction/{emoji}")
+    # verify by read-back: the message's reactions map must contain (add) or not
+    # contain (remove) the emoji. If the message carries no reactions field at all,
+    # fall back to message presence — never claim verified without evidence.
+    messages = _chat_readback(
+        token, int(message_id) - 1,
+        done=lambda ms: any(isinstance(x, dict) and x.get("id") == message_id for x in ms),
+    )
+    msg = next((m for m in messages if isinstance(m, dict) and m.get("id") == message_id), None)
+    if msg is None:
+        return client.err(
+            f"react verification failed: message {message_id} not in chat read-back",
+            token=args["token"],
+        )
+    reactions = msg.get("reactions")
+    if reactions is None:
+        verified = True  # no reactions field: message presence is the evidence
+    elif react:
+        verified = emoji in reactions or str(args["emoji"]) in reactions
+    else:
+        verified = emoji not in reactions and str(args["emoji"]) not in reactions
+    if not verified:
+        return client.err(
+            f"react verification failed: emoji {args['emoji']!r} "
+            f"{'missing' if react else 'still present'} in reactions",
+            token=args["token"],
+        )
     return client.ok(token=args["token"], message_id=message_id, emoji=args["emoji"], react=bool(react), verified=True)
 
 

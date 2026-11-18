@@ -16,7 +16,7 @@ import html
 import uuid
 from urllib.parse import unquote
 
-from . import client, schemas, vcard
+from . import client, dav, schemas, vcard
 from .dav import PROPFIND_ALL, parse_multistatus
 
 
@@ -102,11 +102,7 @@ def _create(args):
         org=args.get("org") or "", note=args.get("note") or "", uid=uid,
     )
     href = _book_href(book) + uid + ".vcf"
-    client.require(
-        client.request("PUT", href, content=body.encode("utf-8"),
-                       headers={"Content-Type": "text/vcard; charset=utf-8"}),
-        (200, 201, 204),
-    )
+    client.dav_put(href, body.encode("utf-8"), "text/vcard; charset=utf-8")
     got = client.dav_get(href).text
     if f"UID:{uid}" not in got:
         return client.err(f"create verification failed: UID {uid} not in read-back", book=book, uid=uid)
@@ -130,11 +126,7 @@ def _edit(args):
     note = args.get("note") if "note" in args else card.get("note", "")
     fn = args.get("fn") or card.get("fn") or ""
     body = vcard.build_vcard(fn=fn, email=emails, phone=phones, org=org, note=note, uid=uid)
-    client.require(
-        client.request("PUT", href, content=body.encode("utf-8"),
-                       headers={"Content-Type": "text/vcard; charset=utf-8", "If-Match": etag}),
-        (200, 201, 204),
-    )
+    client.dav_put(href, body.encode("utf-8"), "text/vcard; charset=utf-8", etag=etag)
     got = vcard.parse_vcard(client.dav_get(href).text)
     esc = vcard.esc
     expected = {
@@ -163,19 +155,7 @@ def _edit(args):
 
 def _book_list(args):
     """PROPFIND Depth 1 on the addressbook home -> DAV dir name + display name per address book."""
-    home = client.book_home().rstrip("/")
-    resp = client.propfind(
-        client.book_home(),
-        depth=1,
-        body='<d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:displayname/></d:prop></d:propfind>',
-    )
-    books = []
-    for r in parse_multistatus(resp.text):
-        href = r["href"].rstrip("/")
-        if href == home or r["props"].get("resourcetype") is not True:
-            continue
-        books.append({"name": unquote(href).rsplit("/", 1)[-1], "display_name": r["props"].get("displayname") or ""})
-    books.sort(key=lambda b: b["name"])
+    books = dav.list_collections(client.book_home())
     return client.ok(count=len(books), books=books)
 
 

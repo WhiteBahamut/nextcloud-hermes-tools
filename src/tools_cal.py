@@ -24,7 +24,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import unquote
 from xml.sax.saxutils import escape as xml_escape
 
-from . import client, ical, schemas
+from . import client, dav, ical, schemas
 from .dav import parse_multistatus
 
 REPORT_HEADERS = {"Content-Type": "application/xml; charset=utf-8", "Depth": "1"}
@@ -36,10 +36,7 @@ def _report(cal_href, body):
 
 
 def _put_ics(href, body, etag=None):
-    headers = {"Content-Type": "text/calendar; charset=utf-8"}
-    if etag:
-        headers["If-Match"] = etag
-    return client.require(client.request("PUT", href, content=body.encode("utf-8"), headers=headers), (200, 201, 204))
+    return client.dav_put(href, body.encode("utf-8"), "text/calendar; charset=utf-8", etag=etag)
 
 
 def _time_range_body(rstart_ics, rend_ics, comp="VEVENT"):
@@ -250,19 +247,7 @@ def _resolve_uid(calendar, uid, comp="VEVENT"):
 
 def _calendar_names() -> list[str]:
     """DAV directory names of the user's calendar collections (for 404 error messages)."""
-    home = client.cal_home().rstrip("/")
-    resp = client.propfind(
-        client.cal_home(),
-        depth=1,
-        body='<d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/></d:prop></d:propfind>',
-    )
-    names = []
-    for r in parse_multistatus(resp.text):
-        href = r["href"].rstrip("/")
-        if href == home or r["props"].get("resourcetype") is not True:
-            continue
-        names.append(unquote(href).rsplit("/", 1)[-1])
-    return sorted(names)
+    return [c["name"] for c in dav.list_collections(client.cal_home())]
 
 
 def _missing_calendar_err(calendar):
@@ -279,19 +264,7 @@ def _missing_calendar_err(calendar):
 
 def _cal_list_calendars(args):
     """PROPFIND Depth 1 on the calendar home -> DAV dir name + display name per calendar collection."""
-    home = client.cal_home().rstrip("/")
-    resp = client.propfind(
-        client.cal_home(),
-        depth=1,
-        body='<d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:displayname/></d:prop></d:propfind>',
-    )
-    cals = []
-    for r in parse_multistatus(resp.text):
-        href = r["href"].rstrip("/")
-        if href == home or r["props"].get("resourcetype") is not True:
-            continue  # the home itself / non-collections
-        cals.append({"name": unquote(href).rsplit("/", 1)[-1], "display_name": r["props"].get("displayname") or ""})
-    cals.sort(key=lambda c: c["name"])
+    cals = dav.list_collections(client.cal_home())
     return client.ok(count=len(cals), calendars=cals)
 
 
@@ -311,7 +284,12 @@ def _cal_list(args):
     limit = int(args.get("limit") or 100)
     rstart, rend = _range_bounds(args)
     cal_href = client.cal_dav(calendar)
-    resp = _report(cal_href, _time_range_body(_ics(rstart), _ics(rend), "VEVENT"))
+    try:
+        resp = _report(cal_href, _time_range_body(_ics(rstart), _ics(rend), "VEVENT"))
+    except client.NcError as exc:
+        if exc.status == 404:
+            return _missing_calendar_err(calendar)
+        raise
     events = []
     for r in parse_multistatus(resp.text):
         ics_text = r["props"].get("calendar-data")
@@ -349,7 +327,12 @@ def _cal_create(args):
         rrule=args.get("rrule") or "", reminder=trigger or "",
     )
     href = client.cal_dav(calendar) + uid + ".ics"
-    _put_ics(href, body)
+    try:
+        _put_ics(href, body)
+    except client.NcError as exc:
+        if exc.status == 404:
+            return _missing_calendar_err(calendar)
+        raise
     got = client.dav_get(href).text
     if f"UID:{uid}" not in got:
         return client.err(f"create verification failed: UID {uid} not in read-back", calendar=calendar, uid=uid)
@@ -417,7 +400,7 @@ def _cal_delete(args):
     calendar = args["calendar"]
     uid = args["uid"]
     href, etag = _resolve_uid(calendar, uid, "VEVENT")
-    client.require(client.request("DELETE", href, headers={"If-Match": etag}), (200, 204))
+    client.require(client.dav_delete(href, headers={"If-Match": etag}), (200, 204))
     try:
         client.dav_get(href)
     except client.NcError as exc:

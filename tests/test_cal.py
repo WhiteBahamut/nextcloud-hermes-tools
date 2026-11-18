@@ -559,3 +559,41 @@ def test_cal_list_defaults_detect_server_tz_nested_vtimezone(monkeypatch):
     assert res["ok"], res
     now_b = datetime.now(ZoneInfo("Europe/Berlin"))
     assert datetime.fromisoformat(res["from"]).utcoffset() == (now_b - timedelta(days=30)).utcoffset(), res["from"]
+
+
+def test_cal_list_404_returns_missing_calendar_err_with_available(nc, call):
+    home = "/remote.php/dav/calendars/bot"
+
+    def h(req):
+        if req.method == "REPORT":
+            return httpx.Response(404, text="nf")
+        if req.method == "PROPFIND" and req.url.path == home + "/":
+            return multistatus([
+                (f"{home}/", '<d:resourcetype><d:collection/></d:resourcetype><d:displayname>Calendars</d:displayname>'),
+                (f"{home}/personal", '<d:resourcetype><d:collection/></d:resourcetype><d:displayname>Personal</d:displayname>'),
+            ])
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_cal_list", {"calendar": "nope"})
+    assert res["ok"] is False
+    assert res["calendar"] == "nope" and res["available"] == ["personal"]
+    assert "not found" in res["error"]
+
+
+def test_cal_create_404_returns_missing_calendar_err_with_available(nc, call):
+    home = "/remote.php/dav/calendars/bot"
+
+    def h(req):
+        if req.method == "PUT":
+            return httpx.Response(404, text="nf")
+        if req.method == "PROPFIND" and req.url.path == home + "/":
+            return multistatus([
+                (f"{home}/tasks", '<d:resourcetype><d:collection/></d:resourcetype><d:displayname>Tasks</d:displayname>'),
+            ])
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_cal_create", {"calendar": "nope", "summary": "x", "start": "2026-11-10T14:00:00Z", "end": "2026-11-10T15:00:00Z"})
+    assert res["ok"] is False
+    assert res["calendar"] == "nope" and res["available"] == ["tasks"]

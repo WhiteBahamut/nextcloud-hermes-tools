@@ -126,3 +126,14 @@ def test_secret_prefers_nc_over_talk(monkeypatch):
     assert client._secret("TALK_SERVER_URL") == "https://talk.example"
     monkeypatch.setenv("NC_SERVER_URL", "")  # empty NC_* falls through to TALK_*
     assert client._secret("TALK_SERVER_URL") == "https://talk.example"
+
+
+def test_dav_put_with_etag_sends_if_match(nc):
+    nc.handler = lambda req: httpx.Response(204)
+    client.dav_put("/remote.php/dav/files/bot/a.txt", b"x", "text/plain", etag='"abc"')
+    req = nc.requests[0]
+    assert req.method == "PUT"
+    assert req.headers["If-Match"] == '"abc"'
+    assert req.headers["Content-Type"] == "text/plain"
+    client.dav_put("/remote.php/dav/files/bot/a.txt", b"x", "text/plain")
+    assert "If-Match" not in nc.requests[1].headers

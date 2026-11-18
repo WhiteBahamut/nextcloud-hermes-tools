@@ -20,13 +20,13 @@ from .dav import PROPFIND_ALL, PROPFIND_COMMENTS, parse_multistatus, user_path
 
 
 def _dav_base() -> str:
-    """'/remote.php/dav' (derived from the files root, no private access)."""
-    return client.files_dav("/").split("/files/")[0]
+    """'/remote.php/dav' (single construction site in client)."""
+    return client.dav_base()
 
 
 def _user() -> str:
     """URL-quoted bot user name."""
-    return client.files_dav("/").split("/files/")[1].rstrip("/")
+    return client.dav_user()
 
 
 # --- activity / notifications ------------------------------------------------------
@@ -156,9 +156,14 @@ def _trash_restore(args):
 def _trash_empty(args):
     base = _trash_base()
     client.require(client.dav_delete(base, headers={"Depth": "infinity"}), (200, 204))
-    resp = client.propfind(base, depth=1, body=PROPFIND_ALL)
+    try:
+        resp = client.propfind(base, depth=1, body=PROPFIND_ALL)
+    except client.NcError as exc:
+        if exc.status != 404:
+            raise
+        resp = None  # trash collection itself is gone: nothing can remain
     remaining = [
-        r for r in parse_multistatus(resp.text)
+        r for r in (parse_multistatus(resp.text) if resp is not None else [])
         if unquote(r["href"]).rstrip("/") != base.rstrip("/")
     ]
     if remaining:
@@ -167,6 +172,20 @@ def _trash_empty(args):
 
 
 # --- comments ------------------------------------------------------------------------
+
+
+def _path_props(path) -> dict:
+    """PROPFIND depth 0 on a files path -> its props dict ({} when empty)."""
+    rs = parse_multistatus(client.propfind(client.files_dav(path), depth=0, body=PROPFIND_ALL).text)
+    return rs[0]["props"] if rs else {}
+
+
+def _fileid_from_path(path) -> str:
+    """Resolve oc:fileid for a files path; 404 if unresolvable."""
+    file_id = str(_path_props(path).get("fileid") or "")
+    if not file_id:
+        raise client.NcError(404, f"could not resolve oc:fileid for {path}")
+    return file_id
 
 
 def _resolve_file_id(args) -> str:
@@ -178,11 +197,7 @@ def _resolve_file_id(args) -> str:
     path = args.get("path") or ""
     if not path:
         raise client.NcError(400, "give file_id or path")
-    rs = parse_multistatus(client.propfind(client.files_dav(path), depth=0, body=PROPFIND_ALL).text)
-    file_id = (rs[0]["props"].get("fileid") or "") if rs else ""
-    if not file_id:
-        raise client.NcError(404, f"could not resolve oc:fileid for {path}")
-    return file_id
+    return _fileid_from_path(path)
 
 
 def _comment_dict(props: dict) -> dict:
@@ -276,9 +291,8 @@ def _file_unlock(args):
         if not file_id.isdigit():
             raise client.NcError(400, "file_id must be numeric")
     else:
-        # same resolution pattern as _resolve_file_id (lines 170-183), plus the folder check
-        rs = parse_multistatus(client.propfind(href, depth=0, body=PROPFIND_ALL).text)
-        props = rs[0]["props"] if rs else {}
+        # folder check and fileid resolution share one PROPFIND
+        props = _path_props(path)
         if props.get("resourcetype") is True:
             return client.err("cannot unlock a folder: files_lock removal works on files only", path=path)
         file_id = str(props.get("fileid") or "")

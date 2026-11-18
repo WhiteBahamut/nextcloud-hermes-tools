@@ -114,15 +114,27 @@ def test_talk_delete_readback_still_present_fails(nc, call):
 
 
 def test_react_url_quotes_emoji(nc, call):
-    nc.handler = lambda req: ocs_ok([])
+    state = {"removed": False}
+
+    def h(req):
+        if req.method == "DELETE":
+            state["removed"] = True
+            return ocs_ok([])
+        if req.method == "GET":
+            reactions = {} if state["removed"] else {"👍": 1}
+            return ocs_ok([{"id": 7, "reactions": reactions}])
+        return ocs_ok([])
+
+    nc.handler = h
     res = call("nc_talk_react", {"token": "t", "message_id": 7, "emoji": "👍"})
     assert res["ok"] and res["verified"]
     # emoji is URL-quoted in the path (round-trips through unquote)
     assert any("/reaction/" in r.url.path and "👍" in unquote(r.url.path) for r in nc.requests)
-    assert nc.methods() == ["POST"]
+    assert nc.methods()[0] == "POST"
+    assert any(r.method == "GET" and r.url.path.endswith("/chat") for r in nc.requests)
     res = call("nc_talk_react", {"token": "t", "message_id": 7, "emoji": "👍", "react": False})
-    assert res["ok"]
-    assert nc.methods()[-1] == "DELETE"
+    assert res["ok"] and res["verified"]
+    assert nc.methods()[-2] == "DELETE"
 
 
 def test_talk_delete_verified(nc, call):
@@ -135,3 +147,28 @@ def test_talk_delete_verified(nc, call):
     nc.handler = h
     res = call("nc_talk_delete", {"token": "t", "message_id": 9})
     assert res["ok"] and res["deleted"] and res["verified"]
+
+
+def test_react_add_verified_by_reactions_readback(nc, call):
+    nc.handler = lambda req: ocs_ok([{"id": 7, "reactions": {"👍": 1}}]) if req.method == "GET" else ocs_ok([])
+    res = call("nc_talk_react", {"token": "t", "message_id": 7, "emoji": "👍"})
+    assert res["ok"] and res["verified"] is True
+    assert any(r.method == "GET" and r.url.path.endswith("/chat") for r in nc.requests)
+
+
+def test_react_add_missing_reaction_fails_verification(nc, call):
+    nc.handler = lambda req: ocs_ok([{"id": 7, "reactions": {}}]) if req.method == "GET" else ocs_ok([])
+    res = call("nc_talk_react", {"token": "t", "message_id": 7, "emoji": "👍"})
+    assert res["ok"] is False and "react verification failed" in res["error"]
+
+
+def test_react_remove_verified_when_emoji_absent(nc, call):
+    nc.handler = lambda req: ocs_ok([{"id": 7, "reactions": {}}]) if req.method == "GET" else ocs_ok([])
+    res = call("nc_talk_react", {"token": "t", "message_id": 7, "emoji": "👍", "react": False})
+    assert res["ok"] and res["verified"] is True
+
+
+def test_react_remove_still_present_fails_verification(nc, call):
+    nc.handler = lambda req: ocs_ok([{"id": 7, "reactions": {"👍": 1}}]) if req.method == "GET" else ocs_ok([])
+    res = call("nc_talk_react", {"token": "t", "message_id": 7, "emoji": "👍", "react": False})
+    assert res["ok"] is False and "react verification failed" in res["error"]

@@ -35,8 +35,9 @@ def unfold(text: str) -> list:
     return lines
 
 
-def parse_content_line(line: str):
-    """``NAME;PARAM=V;...:value`` -> (NAME, {PARAM: V}, value). ':' inside quotes is safe."""
+def parse_content_line(line: str, strip_group: bool = False):
+    """``NAME;PARAM=V;...:value`` -> (NAME, {PARAM: V}, value). ':' inside quotes is safe.
+    With ``strip_group``, a vCard group prefix (``item1.EMAIL``) is removed from NAME."""
     in_quote = False
     idx = -1
     for i, ch in enumerate(line):
@@ -49,12 +50,15 @@ def parse_content_line(line: str):
         return line.upper(), {}, ""
     head, value = line[:idx], line[idx + 1:]
     parts = head.split(";")
+    name = parts[0].upper()
+    if strip_group and "." in name:
+        name = name.split(".", 1)[1]
     params = {}
     for p in parts[1:]:
         if "=" in p:
             k, v = p.split("=", 1)
             params[k.upper()] = v.strip('"')
-    return parts[0].upper(), params, value
+    return name, params, value
 
 
 def parse_ics(text: str) -> list:

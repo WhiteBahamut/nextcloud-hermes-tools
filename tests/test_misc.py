@@ -379,3 +379,14 @@ def test_version_missing_version_field_returns_err(nc, call):
     nc.handler = lambda req: httpx.Response(200, json={"installed": True})
     res = call("nc_version", {})
     assert res["ok"] is False and "version" in res["error"]
+
+
+def test_trash_empty_tolerates_404_on_verification_propfind(nc, call):
+    def h(req):
+        if req.method == "DELETE":
+            return httpx.Response(204)
+        return httpx.Response(404, text="gone")  # trash collection itself vanished
+
+    nc.handler = h
+    res = call("nc_trash_empty", {})
+    assert res["ok"] is True and res["emptied"] is True and res["verified"] is True

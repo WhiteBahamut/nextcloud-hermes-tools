@@ -9,9 +9,10 @@ preview. ``nc_note_delete`` is DESTRUCTIVE-gated.
 
 from __future__ import annotations
 
+from urllib.parse import unquote
+
 from . import client, schemas
 from .dav import PROPFIND_ALL, entry_from_response, parse_multistatus
-from urllib.parse import unquote
 
 NOTES_API = "/index.php/apps/notes/api/v1/notes"
 PREVIEW = 200
