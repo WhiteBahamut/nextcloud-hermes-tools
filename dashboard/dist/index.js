@@ -203,9 +203,12 @@
     }
 
     function toggleExpanded(name) {
-      var next = Object.assign({}, expanded);
-      next[name] = !expanded[name];
-      setExpanded(next);
+      // functional update: survives batched events, no stale-closure overwrite
+      setExpanded(function (prev) {
+        var next = Object.assign({}, prev);
+        next[name] = !prev[name];
+        return next;
+      });
     }
 
     /* Code-doc type label for one parameter spec: type, anyOf union, or "any". */
@@ -295,28 +298,27 @@
     }
 
     function renderRow(t) {
-      var params = (t.parameters && t.parameters.properties) || {};
-      var hasParams = Object.keys(params).length > 0;
       var isOpen = !!expanded[t.name];
       var row = React.createElement(
         "div",
         { className: "nc-row" },
-        hasParams
-          ? React.createElement(
-              Button,
-              {
-                size: "sm",
-                outlined: true,
-                className: "nc-expand",
-                "aria-expanded": isOpen ? "true" : "false",
-                "aria-label": (isOpen ? "Hide" : "Show") + " parameters for " + t.name,
-                onClick: function () {
-                  toggleExpanded(t.name);
-                }
-              },
-              isOpen ? "▾" : "▸"
-            )
-          : null,
+        // every row expands — even with a missing/empty parameters payload (older
+        // plugin_api still mounted on the host), the panel still shows the full
+        // description and the bare nc_name() signature
+        React.createElement(
+          Button,
+          {
+            size: "sm",
+            outlined: true,
+            className: "nc-expand",
+            "aria-expanded": isOpen ? "true" : "false",
+            "aria-label": (isOpen ? "Hide" : "Show") + " details for " + t.name,
+            onClick: function () {
+              toggleExpanded(t.name);
+            }
+          },
+          isOpen ? "▾" : "▸"
+        ),
         toggleControl({
           checked: t.enabled,
           disabled: busy,
@@ -435,7 +437,7 @@
             "p",
             { className: "text-sm text-muted-foreground" },
             tools.length +
-              " tools. Each row has two switches: the left one enables or disables the tool for the agent (applies on the next agent start / plugin reload). The gate switch is the approval gate, on by default — no config entry means enabled; a tool stays gated unless it is listed in `ungated_tools`. While the gate is on, write and destructive calls to the tool ask for your approval before they run (applies immediately); turning it off lets the agent call the tool without an approval prompt."
+              " tools. The ▸ button at the start of a row expands it to show the tool's full description, call signature, and parameter table. Each row also has two switches: the left one enables or disables the tool for the agent (applies on the next agent start / plugin reload). The gate switch is the approval gate, on by default — no config entry means enabled; a tool stays gated unless it is listed in `ungated_tools`. While the gate is on, write and destructive calls to the tool ask for your approval before they run (applies immediately); turning it off lets the agent call the tool without an approval prompt."
           ),
           React.createElement(
             "div",
