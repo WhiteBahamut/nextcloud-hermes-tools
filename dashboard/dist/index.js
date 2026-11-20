@@ -82,6 +82,9 @@
     var gateState = useState("all");
     var gateFilter = gateState[0];
     var setGateFilter = gateState[1];
+    var expandedState = useState({}); // map tool name -> bool; several rows may be open at once
+    var expanded = expandedState[0];
+    var setExpanded = expandedState[1];
     var toastState = useToast ? useToast() : null; // older hosts: inline error paragraph
 
     function notify(msg, tone) {
@@ -199,10 +202,121 @@
       );
     }
 
-    function renderRow(t) {
+    function toggleExpanded(name) {
+      var next = Object.assign({}, expanded);
+      next[name] = !expanded[name];
+      setExpanded(next);
+    }
+
+    /* Code-doc type label for one parameter spec: type, anyOf union, or "any". */
+    function paramType(spec) {
+      if (!spec || typeof spec !== "object") return "any";
+      if (spec.type) return String(spec.type);
+      if (Array.isArray(spec.anyOf)) {
+        return spec.anyOf
+          .map(function (branch) {
+            if (branch && Array.isArray(branch.enum)) {
+              return branch.enum.map(function (v) { return JSON.stringify(v); }).join(" | ");
+            }
+            return branch && branch.type ? String(branch.type) : "any";
+          })
+          .join(" | ");
+      }
+      return "any";
+    }
+
+    /* The exact call signature: required params bare, optional ones rendered as name=default. */
+    function signatureOf(t) {
+      var params = (t.parameters && t.parameters.properties) || {};
+      var required = (t.parameters && t.parameters.required) || [];
+      var names = Object.keys(params);
+      if (names.length === 0) return t.name + "()";
+      var parts = names.map(function (p) {
+        if (required.indexOf(p) !== -1) return p;
+        var spec = params[p] || {};
+        if (Object.prototype.hasOwnProperty.call(spec, "default")) {
+          return p + "=" + JSON.stringify(spec.default);
+        }
+        return p;
+      });
+      return t.name + "(" + parts.join(", ") + ")";
+    }
+
+    /* Expanded doc panel: full description, the call signature, and the parameter table. */
+    function renderDetail(t) {
+      var params = (t.parameters && t.parameters.properties) || {};
+      var required = (t.parameters && t.parameters.required) || [];
+      var names = Object.keys(params);
       return React.createElement(
         "div",
-        { key: t.name, className: "nc-row" },
+        { className: "nc-detail" },
+        React.createElement("p", { className: "nc-detail-desc" }, t.description || ""),
+        React.createElement("code", { className: "nc-signature" }, signatureOf(t)),
+        names.length === 0
+          ? null
+          : React.createElement(
+              "table",
+              { className: "nc-params" },
+              React.createElement(
+                "thead",
+                null,
+                React.createElement(
+                  "tr",
+                  null,
+                  React.createElement("th", null, "Parameter"),
+                  React.createElement("th", null, "Type"),
+                  React.createElement("th", null, "Required"),
+                  React.createElement("th", null, "Default"),
+                  React.createElement("th", null, "Description")
+                )
+              ),
+              React.createElement(
+                "tbody",
+                null,
+                names.map(function (p) {
+                  var spec = params[p] || {};
+                  return React.createElement(
+                    "tr",
+                    { key: p, className: "nc-param" },
+                    React.createElement("td", { className: "nc-param-name" }, p),
+                    React.createElement("td", { className: "nc-param-type" }, paramType(spec)),
+                    React.createElement("td", null, required.indexOf(p) !== -1 ? "required" : ""),
+                    React.createElement(
+                      "td",
+                      { className: "nc-param-default" },
+                      Object.prototype.hasOwnProperty.call(spec, "default") ? JSON.stringify(spec.default) : "—"
+                    ),
+                    React.createElement("td", { className: "nc-param-desc" }, spec.description || "")
+                  );
+                })
+              )
+            )
+      );
+    }
+
+    function renderRow(t) {
+      var params = (t.parameters && t.parameters.properties) || {};
+      var hasParams = Object.keys(params).length > 0;
+      var isOpen = !!expanded[t.name];
+      var row = React.createElement(
+        "div",
+        { className: "nc-row" },
+        hasParams
+          ? React.createElement(
+              Button,
+              {
+                size: "sm",
+                outlined: true,
+                className: "nc-expand",
+                "aria-expanded": isOpen ? "true" : "false",
+                "aria-label": (isOpen ? "Hide" : "Show") + " parameters for " + t.name,
+                onClick: function () {
+                  toggleExpanded(t.name);
+                }
+              },
+              isOpen ? "▾" : "▸"
+            )
+          : null,
         toggleControl({
           checked: t.enabled,
           disabled: busy,
@@ -227,6 +341,12 @@
             }
           })
         )
+      );
+      return React.createElement(
+        React.Fragment,
+        { key: t.name },
+        row,
+        isOpen ? renderDetail(t) : null
       );
     }
 

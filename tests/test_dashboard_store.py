@@ -1,6 +1,6 @@
 import pytest
 
-from nextcloud_tools import dashboard_store
+from nextcloud_tools import dashboard_store, schemas
 
 
 def test_list_tool_names_returns_52_in_manifest_order():
@@ -101,3 +101,31 @@ def test_classify_gate_covers_every_manifest_tool():
             assert gate == "mixed", name
         else:
             assert gate != "mixed", name
+
+
+def test_tool_doc_known_tool_returns_live_schema():
+    doc = dashboard_store.tool_doc("nc_file_put")
+    assert doc["description"] == schemas.NC_FILE_PUT["description"]
+    params = doc["parameters"]
+    assert params is schemas.NC_FILE_PUT["parameters"]  # same object — no duplicated text
+    assert params["type"] == "object"
+    assert params["required"] == ["path"]
+    assert set(params["properties"]) == {"path", "content", "content_base64", "content_type", "allow_empty"}
+
+
+def test_tool_doc_unknown_name_returns_empty_shape():
+    assert dashboard_store.tool_doc("nc_not_a_tool") == {
+        "description": "",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    }
+
+
+def test_tool_doc_covers_every_manifest_tool():
+    checked = 0
+    for name in dashboard_store.list_tool_names():
+        doc = dashboard_store.tool_doc(name)
+        assert isinstance(doc["description"], str) and doc["description"], name
+        params = doc["parameters"]
+        assert isinstance(params, dict) and isinstance(params.get("properties"), dict), name
+        checked += 1
+    assert checked == 52  # guard against the sweep silently matching nothing

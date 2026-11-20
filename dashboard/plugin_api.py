@@ -4,7 +4,7 @@ Mounted at ``/api/plugins/nextcloud-tools/``. Never imported by the CLI plugin o
 the test suite: fastapi / hermes_cli are host-only dependencies.
 
 Wire contract with ``dist/index.js`` (never rename one side only):
-  GET /tools            -> {"tools": [{"name", "description", "gate", "enabled", "guarded"}]}
+  GET /tools            -> {"tools": [{"name", "description", "parameters", "gate", "enabled", "guarded"}]}
   PUT /tools/{name}     -> {"ok": true, "disabled_tools": [...]}  (body {"enabled": bool})
   PUT /tools/{name}/guardrails -> {"ok": true, "ungated_tools": [...]}  (body {"enabled": bool})
 """
@@ -35,7 +35,7 @@ if "nextcloud_tools" not in sys.modules:
     sys.modules["nextcloud_tools"] = _pkg
     _spec.loader.exec_module(_pkg)
 
-from nextcloud_tools import dashboard_store, schemas  # noqa: E402
+from nextcloud_tools import dashboard_store  # noqa: E402
 
 # Same profile-scoped read/write seam as hermes_cli/web_routers/tools.py:
 # _profile_scope for reads, config_write_scope (= _profile_scope +
@@ -54,14 +54,6 @@ class GuardrailToggle(BaseModel):
     enabled: bool
 
 
-def _description(name: str) -> str:
-    """Schema description for a tool name (nc_file_list -> schemas.NC_FILE_LIST)."""
-    schema = getattr(schemas, name.upper(), None)
-    if isinstance(schema, dict):
-        return str(schema.get("description") or "")
-    return ""
-
-
 @router.get("/tools")
 async def list_tools(profile: Optional[str] = None):
     def _read():
@@ -73,10 +65,10 @@ async def list_tools(profile: Optional[str] = None):
                 "tools": [
                     {
                         "name": name,
-                        "description": _description(name),
                         "gate": dashboard_store.classify_gate(name),
                         "enabled": name not in disabled,
                         "guarded": name not in ungated,
+                        **dashboard_store.tool_doc(name),  # description + parameters, live from schemas
                     }
                     for name in dashboard_store.list_tool_names()
                 ]

@@ -82,6 +82,27 @@ def list_tool_names() -> list[str]:
     return _TOOL_RE.findall(text)
 
 
+def tool_doc(name: str) -> dict:
+    """The doc payload for one tool, read live from ``schemas`` (single source of truth).
+
+    Returns ``{"description": str, "parameters": dict}`` where ``parameters`` is the
+    tool schema's ``parameters`` object (type/properties/required) — the same dict
+    the agent-facing registration uses, looked up by the ``nc_x`` -> ``NC_X`` naming
+    convention. Unknown names or malformed schemas get an empty doc shape so callers
+    can render defensively.
+    """
+    from . import schemas
+
+    empty = {"type": "object", "properties": {}, "required": []}
+    schema = getattr(schemas, name.upper(), None)
+    if not isinstance(schema, dict):
+        return {"description": "", "parameters": empty}
+    parameters = schema.get("parameters")
+    if not isinstance(parameters, dict):
+        parameters = empty
+    return {"description": str(schema.get("description") or ""), "parameters": parameters}
+
+
 def get_disabled_tools(config: dict) -> list[str]:
     """The configured disabled_tools list; [] when any section is missing or wrong-typed."""
     return _get_str_list(config, _DISABLED_KEY)

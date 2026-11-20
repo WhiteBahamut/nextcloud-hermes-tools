@@ -116,3 +116,81 @@
   font-size: 0.875rem;
   color: var(--color-muted-foreground);
 }
+
+/* dropdown glyph: fixed-width square so the row layout never shifts on toggle */
+.nc-expand {
+  flex: 0 0 auto;
+  width: 1.75rem;
+  padding: 0;
+  justify-content: center;
+  color: var(--color-muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+/* expanded code-doc panel under the row */
+.nc-detail {
+  margin: 0.25rem 0 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-muted);
+  border-left: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.75rem;
+}
+
+.nc-detail-desc {
+  margin: 0 0 0.5rem;
+}
+
+.nc-signature {
+  display: block;
+  padding: 0.375rem 0.5rem;
+  margin-bottom: 0.5rem;
+  overflow-x: auto;
+  white-space: nowrap;
+  font-family: var(--theme-font-mono);
+  font-size: 0.75rem;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.nc-params {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.nc-params th {
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  font-weight: 600;
+  color: var(--color-muted-foreground);
+}
+
+.nc-params td {
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.nc-param:last-child td {
+  border-bottom: none;
+}
+
+.nc-param-name {
+  font-family: var(--theme-font-mono);
+  white-space: nowrap;
+}
+
+.nc-param-type,
+.nc-param-default {
+  font-family: var(--theme-font-mono);
+  color: var(--color-muted-foreground);
+  white-space: nowrap;
+}
+
+.nc-param-desc {
+  color: var(--color-muted-foreground);
+}
