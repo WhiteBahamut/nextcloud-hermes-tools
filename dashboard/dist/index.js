@@ -548,7 +548,7 @@
             h("span", { className: "nc-name", title: t.name }, t.name),
             h("span", { className: "nc-desc", title: t.description || "" }, t.description || "")
           ),
-          h(Badge, { tone: GATE_TONE[t.gate] || "outline", className: "nc-gatebadge" }, t.gate || "mixed"),
+          h(Badge, { tone: GATE_TONE[t.gate] || "outline", className: "nc-gatebadge nc-gate-" + (t.gate || "mixed") }, t.gate || "mixed"),
           h(
             "div",
             { className: "nc-cell-enabled" },

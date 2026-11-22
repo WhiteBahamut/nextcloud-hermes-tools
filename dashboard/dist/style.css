@@ -61,16 +61,19 @@
   color: var(--color-foreground, var(--foreground));
 }
 
-.nc-stat-ok .nc-stat-value {
-  color: var(--color-success, var(--success));
+/* Status is a non-text signal (colored left border), never the number itself:
+ * success/warning on muted drop below AA (4.23:1 / 5.52:1) at stat size, while
+ * foreground on muted is 6.39:1 under the nord tokens. */
+.nc-stat-ok {
+  border-left: 3px solid var(--color-success, var(--success));
 }
 
-.nc-stat-warn .nc-stat-value {
-  color: var(--color-warning, var(--warning));
+.nc-stat-warn {
+  border-left: 3px solid var(--color-warning, var(--warning));
 }
 
 .nc-stat-label {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -184,7 +187,7 @@
   gap: 0.75rem;
   padding: 0.375rem 0.75rem;
   border-bottom: 1px solid var(--color-border, var(--border));
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -221,7 +224,7 @@
 }
 
 .nc-group-count {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   padding: 0.0625rem 0.375rem;
   border-radius: 999px;
   background: var(--color-muted, var(--muted));
@@ -315,6 +318,28 @@
   justify-self: start;
 }
 
+/* Host Badge tones fail AA on dark themes at badge size (11.5 px): secondary/
+ * outline render muted-foreground on muted (5.26:1, washed out), destructive
+ * renders its foreground on solid destructive (3.55:1 under nord). Force an
+ * opaque pill instead: foreground text on muted (6.39:1); the destructive/
+ * mixed tones get a destructive-tinted bg (fg on 25% destructive over card =
+ * 6.04:1).
+ * Two-class selectors so these win over the host's single-class tone rules
+ * regardless of stylesheet order. */
+.nc-row .nc-gatebadge {
+  font-size: 0.75rem;
+  color: var(--color-foreground, var(--foreground));
+  background: var(--color-muted, var(--muted));
+  border: 1px solid var(--color-border, var(--border));
+}
+
+.nc-row .nc-gatebadge.nc-gate-destructive,
+.nc-row .nc-gatebadge.nc-gate-mixed {
+  background: var(--color-muted, var(--muted)); /* fallback when color-mix is unsupported */
+  background: color-mix(in srgb, var(--color-destructive, var(--destructive)) 25%, var(--color-card, var(--card)));
+  border-color: var(--color-destructive, var(--destructive));
+}
+
 .nc-cell-enabled {
   grid-area: enabled;
   display: flex;
@@ -340,7 +365,7 @@
 }
 
 .nc-saving {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   color: var(--color-muted-foreground, var(--muted-foreground));
 }
 
@@ -444,7 +469,7 @@
 
 .nc-param-type {
   font-family: var(--theme-font-mono, var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace));
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   padding: 0.0625rem 0.375rem;
   border-radius: 999px;
   background: var(--color-muted, var(--muted));
@@ -452,10 +477,12 @@
   overflow-wrap: anywhere;
 }
 
+/* a default value is primary data, not decoration: foreground on card
+ * (7.45:1 under nord) instead of muted-foreground (6.14:1 at 11 px) */
 .nc-param-default {
   font-family: var(--theme-font-mono, var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace));
-  font-size: 0.6875rem;
-  color: var(--color-muted-foreground, var(--muted-foreground));
+  font-size: 0.75rem;
+  color: var(--color-foreground, var(--foreground));
   overflow-wrap: anywhere;
 }
 
