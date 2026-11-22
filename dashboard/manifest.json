@@ -2,8 +2,8 @@
   "name": "nextcloud-tools",
   "label": "Nextcloud",
   "icon": "Database",
-  "version": "0.3.2",
-  "description": "All nc_* tools with per-tool enable/disable and approval-gate toggle.",
+  "version": "0.4.0",
+  "description": "Overview and settings for all nc_* tools: per-tool enable/disable, approval-gate, search, filters, and full parameter docs.",
   "tab": {
     "path": "/nextcloud-tools",
     "position": "end"

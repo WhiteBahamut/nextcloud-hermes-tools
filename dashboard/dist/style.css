@@ -1,29 +1,170 @@
 /* nextcloud-tools dashboard tab styles.
- * Every color comes from the host theme tokens (var(--color-*)), which the
- * dashboard rewrites on theme switch — the plugin ships no color theme of its own.
+ *
+ * Every color comes from the host theme tokens. The verified Hermes token family
+ * is --color-* (+ --radius, --theme-font-mono); each var() also carries the
+ * unprefixed shadcn-style name as a fallback so other hosts still theme the tab.
+ * No hex/rgb/hsl literals anywhere — the plugin ships no color theme of its own.
  */
 
-.nc-toolbar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
+/* ---------- root / header ---------- */
+
+.nc-root {
+  width: 100%;
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.nc-header {
   display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.nc-titleblock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.nc-lede {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-muted-foreground, var(--muted-foreground));
+}
+
+/* stat strip: total / enabled / gated / ungated */
+.nc-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(6.5rem, 1fr));
   gap: 0.5rem;
+}
+
+.nc-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.5rem 0.75rem;
+  /* muted, not card: the stat sits inside a card, so muted gives it contrast */
+  background: var(--color-muted, var(--muted));
+  border: 1px solid var(--color-border, var(--border));
+  border-radius: var(--radius, var(--radius-md, 0.5rem));
+}
+
+.nc-stat-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-foreground, var(--foreground));
+}
+
+.nc-stat-ok .nc-stat-value {
+  color: var(--color-success, var(--success));
+}
+
+.nc-stat-warn .nc-stat-value {
+  color: var(--color-warning, var(--warning));
+}
+
+.nc-stat-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted-foreground, var(--muted-foreground));
+}
+
+.nc-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.nc-inline-error {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-destructive, var(--destructive));
+}
+
+/* warning banner when destructive/mixed tools are ungated */
+.nc-banner {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  border: 1px solid var(--color-warning, var(--warning));
+  border-radius: var(--radius, var(--radius-md, 0.5rem));
+  background: var(--color-muted, var(--muted)); /* fallback when color-mix is unsupported */
+  background: color-mix(in srgb, var(--color-warning, var(--warning)) 12%, transparent);
+  color: var(--color-foreground, var(--foreground));
+}
+
+/* collapsible explainer (replaces the old wall of text) */
+.nc-help {
+  font-size: 0.8125rem;
+  color: var(--color-muted-foreground, var(--muted-foreground));
+}
+
+.nc-help summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--color-foreground, var(--foreground));
+  width: fit-content;
+}
+
+.nc-help summary:hover {
+  color: var(--color-primary, var(--primary));
+}
+
+.nc-help-text {
+  margin: 0.375rem 0 0;
+  max-width: 60rem;
+  line-height: 1.5;
+}
+
+.nc-gateline {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground, var(--muted-foreground));
+}
+
+/* ---------- toolbar ---------- */
+
+.nc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  padding: 0.5rem 0;
-  background: var(--color-card);
-  border-bottom: 1px solid var(--color-border);
+  gap: 0.5rem;
 }
 
 .nc-search {
-  flex: 1 1 auto;
-  min-width: 12rem;
+  flex: 1 1 12rem;
+  min-width: 10rem;
 }
 
 .nc-gatefilter {
-  flex: 0 0 auto;
-  width: 9rem;
+  flex: 0 1 10rem;
 }
+
+.nc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.nc-chip {
+  border-radius: 999px;
+}
+
+.nc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+/* ---------- tabs + column header ---------- */
 
 .nc-tabslist {
   flex-wrap: wrap;
@@ -34,168 +175,386 @@
   min-width: 0;
 }
 
+/* column header above the list — same grid as .nc-row so labels line up */
+.nc-cols {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) 6.5rem 7.5rem 9.5rem;
+  grid-template-areas: "expand tool gate enabled approval";
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.375rem 0.75rem;
+  border-bottom: 1px solid var(--color-border, var(--border));
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted-foreground, var(--muted-foreground));
+}
+
+.nc-col-expand { grid-area: expand; }
+.nc-col-tool { grid-area: tool; }
+.nc-col-gate { grid-area: gate; }
+.nc-col-enabled { grid-area: enabled; }
+.nc-col-approval { grid-area: approval; }
+
+.nc-listwrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* ---------- tool list ---------- */
+
+.nc-group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.25rem 0.375rem;
+}
+
+.nc-group-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted-foreground, var(--muted-foreground));
+}
+
+.nc-group-count {
+  font-size: 0.6875rem;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 999px;
+  background: var(--color-muted, var(--muted));
+  color: var(--color-muted-foreground, var(--muted-foreground));
+}
+
 .nc-list {
-  max-height: 65vh;
-  overflow-y: auto;
-  padding-right: 0.25rem;
-  margin-top: 0.5rem;
+  border: 1px solid var(--color-border, var(--border));
+  border-radius: var(--radius, var(--radius-md, 0.5rem));
+  background: var(--color-card, var(--card));
+  overflow: hidden;
 }
 
-.nc-list::-webkit-scrollbar {
-  width: 8px;
-}
-
-.nc-list::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: var(--radius);
-}
-
-.nc-list::-webkit-scrollbar-track {
-  background: transparent;
+.nc-list > * + * {
+  border-top: 1px solid var(--color-border, var(--border));
 }
 
 .nc-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) 6.5rem 7.5rem 9.5rem;
+  grid-template-areas: "expand tool gate enabled approval";
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 0.25rem;
-  border-radius: var(--radius);
+  gap: 0.75rem;
+  padding: 0.55rem 0.75rem;
 }
 
 .nc-row:hover {
-  background: var(--color-muted);
-}
-
-.nc-row + .nc-row,
-.nc-detail + .nc-row {
-  border-top: 1px solid var(--color-border);
+  background: var(--color-muted, var(--muted));
 }
 
 .nc-row:focus-within {
-  outline: 2px solid var(--color-ring);
+  outline: 2px solid var(--color-ring, var(--ring));
   outline-offset: -2px;
 }
 
-.nc-name {
-  flex: 0 0 auto;
-  max-width: 40%;
-  font-family: var(--theme-font-mono);
-  font-size: 0.875rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* plugin-specific interactive elements get an explicit keyboard focus ring */
+.nc-help summary:focus-visible,
+.nc-chip:focus-visible,
+.nc-expand:focus-visible,
+.nc-copy:focus-visible {
+  outline: 2px solid var(--color-ring, var(--ring));
+  outline-offset: 2px;
 }
 
-.nc-desc {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.75rem;
-  color: var(--color-muted-foreground);
+.nc-row-off {
+  opacity: 0.55;
 }
 
-.nc-summary {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.nc-gate {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.75rem;
-  color: var(--color-muted-foreground);
-  flex: 0 0 auto;
-}
-
-.nc-empty {
-  padding: 1rem 0.25rem;
-  font-size: 0.875rem;
-  color: var(--color-muted-foreground);
+.nc-row-busy {
+  opacity: 0.75;
 }
 
 /* dropdown glyph: fixed-width square so the row layout never shifts on toggle */
 .nc-expand {
-  flex: 0 0 auto;
-  width: 1.75rem;
+  grid-area: expand;
+  width: 1.5rem;
   padding: 0;
   justify-content: center;
-  color: var(--color-muted-foreground);
+  color: var(--color-muted-foreground, var(--muted-foreground));
   font-size: 0.75rem;
   line-height: 1;
 }
 
-/* expanded code-doc panel under the row */
-.nc-detail {
-  margin: 0.25rem 0 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--color-muted);
-  border-left: 2px solid var(--color-border);
-  border-radius: var(--radius);
+.nc-tool {
+  grid-area: tool;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.nc-name {
+  font-family: var(--theme-font-mono, var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace));
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-foreground, var(--foreground));
+}
+
+.nc-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.75rem;
-  color: var(--color-foreground, var(--color-card-foreground));
+  color: var(--color-muted-foreground, var(--muted-foreground));
+}
+
+.nc-gatebadge {
+  grid-area: gate;
+  justify-self: start;
+}
+
+.nc-cell-enabled {
+  grid-area: enabled;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.nc-cell-gate {
+  grid-area: approval;
+  display: flex;
+  align-items: center;
+}
+
+.nc-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.nc-toggle-label {
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground, var(--muted-foreground));
+}
+
+.nc-saving {
+  font-size: 0.6875rem;
+  color: var(--color-muted-foreground, var(--muted-foreground));
+}
+
+/* ---------- inline confirm (ungating a destructive tool) ---------- */
+
+.nc-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+  border-top: 1px solid var(--color-destructive, var(--destructive));
+  background: var(--color-muted, var(--muted)); /* fallback when color-mix is unsupported */
+  background: color-mix(in srgb, var(--color-destructive, var(--destructive)) 8%, transparent);
+  font-size: 0.8125rem;
+}
+
+.nc-confirm-text {
+  flex: 1 1 16rem;
+  color: var(--color-foreground, var(--foreground));
+}
+
+/* ---------- expanded doc panel ---------- */
+
+.nc-detail {
+  margin: 0;
+  padding: 0.75rem 1rem 0.75rem 2.25rem;
+  border-top: 1px solid var(--color-border, var(--border));
+  background: var(--color-muted, var(--muted));
+  background: color-mix(in srgb, var(--color-muted, var(--muted)) 45%, transparent);
+  font-size: 0.8125rem;
+  color: var(--color-foreground, var(--color-card-foreground, var(--foreground)));
 }
 
 .nc-detail-desc {
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.625rem;
+  line-height: 1.5;
+  max-width: 60rem;
+}
+
+.nc-sig-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.625rem;
 }
 
 .nc-signature {
-  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
   padding: 0.375rem 0.5rem;
-  margin-bottom: 0.5rem;
   overflow-x: auto;
   white-space: nowrap;
-  font-family: var(--theme-font-mono);
+  font-family: var(--theme-font-mono, var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace));
   font-size: 0.75rem;
-  background: var(--color-card);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  background: var(--color-card, var(--card));
+  border: 1px solid var(--color-border, var(--border));
+  border-radius: var(--radius, var(--radius-sm, 0.375rem));
   /* explicit color: a host global `code { color }` rule would otherwise beat
-   * inheritance and render dark text on the dark --color-card background */
-  color: var(--color-foreground, var(--color-card-foreground));
+   * inheritance and render dark text on the dark card background */
+  color: var(--color-foreground, var(--color-card-foreground, var(--foreground)));
 }
 
-.nc-params {
-  width: 100%;
-  border-collapse: collapse;
+.nc-copy {
+  flex: 0 0 auto;
+}
+
+.nc-noparams {
+  margin: 0;
   font-size: 0.75rem;
+  color: var(--color-muted-foreground, var(--muted-foreground));
 }
 
-.nc-params th {
-  padding: 0.25rem 0.5rem;
-  border-bottom: 1px solid var(--color-border);
-  text-align: left;
-  font-weight: 600;
-  color: var(--color-muted-foreground);
+/* parameters as cards (readable at any width, unlike a 5-column table) */
+.nc-params {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.nc-params td {
-  padding: 0.25rem 0.5rem;
-  border-bottom: 1px solid var(--color-border);
-  vertical-align: top;
+.nc-param {
+  padding: 0.5rem 0.625rem;
+  background: var(--color-card, var(--card));
+  border: 1px solid var(--color-border, var(--border));
+  border-radius: var(--radius, var(--radius-sm, 0.375rem));
 }
 
-.nc-param:last-child td {
-  border-bottom: none;
+.nc-param-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
 }
 
 .nc-param-name {
-  font-family: var(--theme-font-mono);
-  white-space: nowrap;
+  font-family: var(--theme-font-mono, var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace));
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-foreground, var(--foreground));
 }
 
-.nc-param-type,
+.nc-param-type {
+  font-family: var(--theme-font-mono, var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace));
+  font-size: 0.6875rem;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 999px;
+  background: var(--color-muted, var(--muted));
+  color: var(--color-muted-foreground, var(--muted-foreground));
+  overflow-wrap: anywhere;
+}
+
 .nc-param-default {
-  font-family: var(--theme-font-mono);
-  color: var(--color-muted-foreground);
-  white-space: nowrap;
+  font-family: var(--theme-font-mono, var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace));
+  font-size: 0.6875rem;
+  color: var(--color-muted-foreground, var(--muted-foreground));
+  overflow-wrap: anywhere;
 }
 
 .nc-param-desc {
-  color: var(--color-muted-foreground);
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--color-muted-foreground, var(--muted-foreground));
+}
+
+/* ---------- loading / error / empty states ---------- */
+
+.nc-list-skel {
+  padding: 0;
+}
+
+.nc-skel {
+  height: 3rem;
+  background: var(--color-muted, var(--muted));
+  animation: nc-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes nc-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.nc-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 0.75rem;
+  border: 1px solid var(--color-destructive, var(--destructive));
+  border-radius: var(--radius, var(--radius-md, 0.5rem));
+  background: var(--color-muted, var(--muted)); /* fallback when color-mix is unsupported */
+  background: color-mix(in srgb, var(--color-destructive, var(--destructive)) 8%, transparent);
+}
+
+.nc-error-text {
+  margin: 0;
+  flex: 1 1 16rem;
+  font-size: 0.8125rem;
+  color: var(--color-foreground, var(--foreground));
+}
+
+.nc-empty {
+  padding: 2rem 0.75rem;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--color-muted-foreground, var(--muted-foreground));
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 52rem) {
+  .nc-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nc-gatefilter {
+    flex: 1 1 8rem;
+  }
+
+  .nc-actions {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 40rem) {
+  /* column header is meaningless when rows wrap — labels live on the toggles */
+  .nc-cols {
+    display: none;
+  }
+
+  .nc-row {
+    grid-template-columns: 1.5rem minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "expand tool tool tool"
+      "expand gate enabled approval";
+    row-gap: 0.375rem;
+  }
+
+  .nc-desc {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .nc-detail,
+  .nc-confirm {
+    padding-left: 0.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nc-skel {
+    animation: none;
+  }
 }
