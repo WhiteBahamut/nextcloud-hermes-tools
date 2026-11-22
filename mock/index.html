@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nextcloud-tools dashboard — local mock</title>
+<link rel="stylesheet" href="/dist/style.css">
+<style>
+  /* Mock host theme: defines both token families that dist/style.css reads —
+   * --color-* (Hermes) and the unprefixed shadcn-style fallbacks. Light theme. */
+  :root {
+    --color-background: #fafafa; --background: #fafafa;
+    --color-foreground: #18181b; --foreground: #18181b;
+    --color-card: #ffffff; --card: #ffffff;
+    --color-card-foreground: #18181b; --card-foreground: #18181b;
+    --color-muted: #f4f4f5; --muted: #f4f4f5;
+    --color-muted-foreground: #71717a; --muted-foreground: #71717a;
+    --color-primary: #2563eb; --primary: #2563eb;
+    --color-primary-foreground: #ffffff; --primary-foreground: #ffffff;
+    --color-border: #e4e4e7; --border: #e4e4e7;
+    --color-ring: #2563eb; --ring: #2563eb;
+    --color-destructive: #dc2626; --destructive: #dc2626;
+    --color-success: #16a34a; --success: #16a34a;
+    --color-warning: #d97706; --warning: #d97706;
+    --radius: 0.5rem; --radius-md: 0.375rem; --radius-sm: 0.25rem;
+    --theme-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 1.5rem 1rem 3rem;
+    background: var(--color-background, var(--background));
+    color: var(--color-foreground, var(--foreground));
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  code { font-family: var(--theme-font-mono, var(--font-mono)); }
+
+  /* mock banner so it is obvious this is not the real Hermes dashboard */
+  .mock-banner {
+    max-width: 72rem;
+    margin: 0 auto 1rem;
+    padding: 0.4rem 0.75rem;
+    border: 1px dashed var(--color-warning, var(--warning));
+    border-radius: var(--radius-md, var(--radius));
+    color: var(--color-warning, var(--warning));
+    font-size: 0.8rem;
+  }
+
+  /* mock stand-ins for the host SDK components (Card/Button/Badge/…).
+   * dist/style.css only styles the .nc-* hooks, so the primitives are styled here. */
+  .mock-card {
+    background: var(--color-card, var(--card));
+    color: var(--color-card-foreground, var(--card-foreground));
+    border: 1px solid var(--color-border, var(--border));
+    border-radius: var(--radius, 0.5rem);
+  }
+  .mock-card-header { padding: 1rem 1.25rem 0; }
+  .mock-card-title { font-size: 1.1rem; font-weight: 600; }
+  .mock-card-content { padding: 1rem 1.25rem 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+
+  .mock-btn {
+    appearance: none;
+    border: 1px solid var(--color-border, var(--border));
+    background: var(--color-primary, var(--primary));
+    color: var(--color-primary-foreground, var(--primary-foreground));
+    border-radius: var(--radius-md, var(--radius-sm));
+    padding: 0.35rem 0.7rem;
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .mock-btn:disabled { opacity: 0.5; cursor: default; }
+  .mock-btn-sm { padding: 0.2rem 0.55rem; font-size: 0.8rem; }
+  .mock-btn-ghost { background: transparent; color: var(--color-foreground, var(--foreground)); border-color: transparent; }
+  .mock-btn-ghost:hover { background: var(--color-muted, var(--muted)); }
+  .mock-btn-outlined { background: transparent; color: var(--color-foreground, var(--foreground)); }
+  .mock-btn-destructive { background: var(--color-destructive, var(--destructive)); border-color: var(--color-destructive, var(--destructive)); color: #fff; }
+  .mock-btn-invert { background: var(--color-foreground, var(--foreground)); color: var(--color-background, var(--background)); }
+
+  .mock-badge {
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    border: 1px solid var(--color-border, var(--border));
+    background: var(--color-muted, var(--muted));
+    color: var(--color-muted-foreground, var(--muted-foreground));
+    white-space: nowrap;
+  }
+  .mock-badge-default { background: var(--color-primary, var(--primary)); border-color: var(--color-primary, var(--primary)); color: var(--color-primary-foreground, #fff); }
+  .mock-badge-destructive { background: var(--color-destructive, var(--destructive)); border-color: var(--color-destructive, var(--destructive)); color: #fff; }
+  .mock-badge-success { background: var(--color-success, var(--success)); border-color: var(--color-success, var(--success)); color: #fff; }
+  .mock-badge-warning { background: var(--color-warning, var(--warning)); border-color: var(--color-warning, var(--warning)); color: #fff; }
+
+  .mock-input, .mock-select {
+    font: inherit;
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--color-border, var(--border));
+    border-radius: var(--radius-md, var(--radius-sm));
+    background: var(--color-background, var(--background));
+    color: inherit;
+  }
+  .mock-input:focus-visible, .mock-select:focus-visible, .mock-btn:focus-visible, .mock-tab:focus-visible, .mock-checkbox:focus-visible {
+    outline: 2px solid var(--color-ring, var(--ring));
+    outline-offset: 1px;
+  }
+  .mock-checkbox { width: 1rem; height: 1rem; accent-color: var(--color-primary, var(--primary)); }
+
+  .mock-tabslist { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+  .mock-tab {
+    appearance: none;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--color-muted-foreground, var(--muted-foreground));
+    padding: 0.3rem 0.7rem;
+    border-radius: var(--radius-md, var(--radius-sm));
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .mock-tab-active {
+    background: var(--color-muted, var(--muted));
+    color: var(--color-foreground, var(--foreground));
+    border-color: var(--color-border, var(--border));
+  }
+
+  .mock-sep { border: none; border-top: 1px solid var(--color-border, var(--border)); margin: 0; }
+
+  .mock-toast {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 50;
+    padding: 0.6rem 0.9rem;
+    border-radius: var(--radius-md, var(--radius-sm));
+    border: 1px solid var(--color-border, var(--border));
+    background: var(--color-card, var(--card));
+    color: var(--color-card-foreground, var(--card-foreground));
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    font-size: 0.85rem;
+    max-width: 24rem;
+  }
+  .mock-toast-success { border-color: var(--color-success, var(--success)); }
+  .mock-toast-error { border-color: var(--color-destructive, var(--destructive)); }
+</style>
+</head>
+<body>
+  <div class="mock-banner">
+    LOCAL MOCK — not the Hermes dashboard. Serves the real <code>dashboard/dist/</code> bundle against a
+    stand-in plugin API (see <code>mock/mock_server.py</code>). State lives in
+    <code>mock/state.json</code>; delete it to reset.
+  </div>
+  <div id="root"></div>
+  <script src="/mock-sdk.js"></script>
+  <script src="/dist/index.js"></script>
+</body>
+</html>

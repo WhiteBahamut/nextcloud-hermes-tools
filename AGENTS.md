@@ -46,6 +46,7 @@ surrounding style by hand. Every module MUST start with
 | `src/ical.py`, `src/vcard.py` | Stdlib-only ICS / vCard parsers + builders — no dateutil, no extra deps |
 | `src/dashboard_store.py` | Persists per-tool enable/disable to `config.yaml`; reads `plugin.yaml` via regex (no yaml import) so tests can import it |
 | `dashboard/` | Dashboard tab: `plugin_api.py` (host-only, fastapi) + `manifest.json` + `dist/index.js` |
+| `mock/` | Manual-testing mock of the dashboard host: stdlib server (`mock_server.py`) + mock SDK (`mock_sdk.js`) serving the real `dashboard/dist/` bundle; runtime state in git-ignored `mock/state.json`. Opens a real socket, so it MUST NOT live under `tests/` |
 | `tests/` | pytest; `conftest.py` loads `src/` via importlib and provides `fake_ctx`, `call`, `nc` (MockTransport recording every request) fixtures + `multistatus` / `ocs_ok` / `ocs_err` helpers |
 
 ## Hard rules
