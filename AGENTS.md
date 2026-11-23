@@ -85,6 +85,12 @@ surrounding style by hand. Every module MUST start with
 
 See the `nc-add-tool` skill (`.omp/skills/nc-add-tool/SKILL.md`).
 
+## Dashboard UI/UX work
+
+See the `dashboard-designer` agent (`.omp/agents/dashboard-designer.md`) and its skills
+(`.omp/skills/nc-dashboard-*/SKILL.md`) — use it to review, improve, and apply changes to
+`dashboard/`.
+
 ## Compatibility checks
 
 See the `nc-compat-hermes` and `nc-compat-nextcloud` skills (`.omp/skills/`) for the regular Hermes/Nextcloud compatibility watchlist.
