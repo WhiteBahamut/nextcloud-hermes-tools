@@ -65,6 +65,18 @@ also models the host DS `@layer base` code-chip rule and the `<Backdrop/>`
 vignette/grain (driven by `palette.warmGlow` / `palette.noiseOpacity`), so a
 theme's `customCSS` interacts with them the same way as in the real host.
 
+Gotcha the mock reproduces faithfully: for **user** themes the host derives the
+shadcn base tokens from the palette *layers* (`--background` / `--midground` /
+`--foreground`, alpha applied; bootstrap also sets `--background-base` /
+`--midground-base` with alpha dropped), and `--color-foreground` resolves
+through the **foreground** layer. A theme with `foreground` at alpha 0 (the
+default "invisible overlay") therefore gets a transparent `--color-foreground`
+on the live host — every `var(--color-foreground, …)` text goes invisible.
+`mock/nord.yaml` compensates with `!important` pins in `customCSS`
+(`--color-foreground: var(--midground) !important`, same for `--selection-bg`),
+which beat the inline vars `applyTheme()` writes on `<html>`. If you write a dark
+theme with an alpha-0 foreground layer, copy those pins.
+
 ## Limitations vs the real host
 
 - The SDK is a small full-rebuild renderer, not real React; hook state is keyed

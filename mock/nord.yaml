@@ -80,6 +80,16 @@ componentStyles:
 # so the theme's nord11 #BF616A actually applies.
 customCSS: |
   :root {
+    /* For user themes the host derives the shadcn base tokens from the palette
+       LAYERS, and --color-foreground resolves through the foreground layer —
+       which this theme sets to alpha 0 (invisible, the default overlay). Without
+       these pins every var(--color-foreground, …) text renders transparent on the
+       live host (stat values, filter pills, tool names, …). !important is required
+       because ThemeProvider.applyTheme() writes the layer vars as INLINE styles on
+       <html>, and an important author-stylesheet declaration beats a normal inline
+       one. Values follow the midground layer so a midground tweak propagates. */
+    --color-foreground: var(--midground) !important;
+    --selection-bg: var(--midground) !important;
     --color-muted-foreground: #BCCCDC;
     --text-secondary: #BCCCDC;   /* == mutedForeground: 7.62:1 on background */
     --text-tertiary: #BCCCDC;    /* lift dim labels off the 4.87:1 derived value */
@@ -91,9 +101,12 @@ customCSS: |
     color: var(--color-destructive) !important;
   }
   /* Inline-code chip only inside the chat tab (data-chat-active="true") and
-     message/prose surfaces; transparent everywhere else. */
+     message/prose surfaces; transparent everywhere else. The host base layer
+     paints code in var(--background) (dark under nord), which was only readable
+     on the light chip — so without the chip, inherit the surrounding text color. */
   code {
     background: transparent;
+    color: inherit;
   }
   [data-chat-active="true"] code,
   [class*="message"] code,

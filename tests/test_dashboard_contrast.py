@@ -32,6 +32,10 @@ CSS_PATH = Path(__file__).resolve().parent.parent / "dashboard" / "dist" / "styl
 # muted value the review quotes), destructive-foreground #ECEFF4 (the 3.55:1-on-
 # destructive pair), and border #4C566A (nord3). Prefixed and unprefixed names
 # both map, matching the var(--color-x, var(--x)) fallback chains in the CSS.
+# Note: on the live host, user themes derive --color-foreground from the palette's
+# foreground layer (alpha 0 = invisible), so nord.yaml pins it via customCSS
+# (--color-foreground: var(--midground) !important) — the pin below is the value
+# that pin produces.
 NORD: dict[str, str] = {
     "--color-background": "#2E3440",
     "--background": "#2E3440",

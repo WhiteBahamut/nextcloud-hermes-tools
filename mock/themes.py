@@ -7,9 +7,16 @@ subset of YAML the dashboard-theme format uses: nested block maps by indentation
 literal block scalars (used by customCSS). Comments (# ...) are stripped outside
 quotes, so hex colors like "#2E3440" survive.
 
-The compiler mirrors the host's theme model (Hermes dashboard-themes docs):
-  palette.background/midground/foreground -> --color-background / --color-foreground
-      (+ --background / --foreground / --midground / --selection-bg host vars)
+The compiler mirrors the host's theme model (Hermes web_server bootstrap +
+web/src/themes/context.tsx, verified against the pinned host source):
+  palette.background/midground/foreground -> layer vars --background / --midground /
+      --foreground (alpha applied) plus bootstrap --background-base / --midground-base
+      (hex only, alpha dropped); the shadcn base tokens are derived from the layers:
+      --color-background: var(--background), --color-foreground: var(--foreground).
+      NOTE: that derivation routes --color-foreground through the foreground layer,
+      so a theme with foreground alpha 0 (like nord) must pin --color-foreground in
+      customCSS with !important — otherwise all var(--color-foreground, …) text is
+      invisible on the live host (this exact bug shipped in nord.yaml once).
   colorOverrides.<camelKey>      -> --color-<kebab> AND --<kebab> (shadcn fallback)
   componentStyles.<bucket>.<camelProp> -> --component-<bucket>-<kebab>
   typography.fontSans/fontMono/baseSize/lineHeight/letterSpacing -> body + html rules
@@ -211,17 +218,27 @@ def _kebab(name: str) -> str:
 
 
 def _layer_css(value) -> str:
-    """A palette layer ({hex, alpha} or bare string) as a CSS color."""
+    """A palette layer ({hex, alpha} or bare string) as a CSS color (alpha applied)."""
     if isinstance(value, dict):
         hexv = str(value.get("hex", "#000000"))
         alpha = value.get("alpha", 1)
         alpha = 1 if alpha is None else float(alpha)
         if alpha >= 1:
             return hexv
-        h = hexv.lstrip("#")
-        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-        return f"rgba({r}, {g}, {b}, {alpha})"
+        return f"rgba({_layer_rgb(hexv)}, {alpha})"
     return str(value)
+
+
+def _layer_hex(value) -> str:
+    """A palette layer as bare hex — alpha dropped, like the host's _layer_hex."""
+    if isinstance(value, dict):
+        return str(value.get("hex", "#000000"))
+    return str(value)
+
+
+def _layer_rgb(hexv: str) -> str:
+    h = hexv.lstrip("#")
+    return f"{int(h[0:2], 16)}, {int(h[2:4], 16)}, {int(h[4:6], 16)}"
 
 
 def list_themes(mock_root: Path) -> list[dict]:
@@ -290,10 +307,19 @@ def compile_theme_css(theme: dict) -> str:
     bg = _layer_css(pal.get("background", "#000000"))
     mid = _layer_css(pal.get("midground", "#ffffff"))
     fg = _layer_css(pal.get("foreground", {"hex": "#ffffff", "alpha": 0}))
-    root.append(f"--color-background: {bg}; --background: {bg};")
-    # the host's DS reads midground as the primary text/accent layer
-    root.append(f"--color-foreground: {mid}; --foreground: {mid}; --midground: {mid}; --selection-bg: {mid};")
-    root.append(f"--foreground-layer: {fg}; /* top-layer highlight (invisible at alpha 0) */")
+    bg_hex = _layer_hex(pal.get("background", "#000000"))
+    mid_hex = _layer_hex(pal.get("midground", "#ffffff"))
+    # Host-faithful layer vars (web_server bootstrap + ThemeProvider.layerVars):
+    # the -base vars carry hex only (alpha dropped, like the host's _layer_hex),
+    # the layer vars carry alpha, and the shadcn base tokens are DERIVED from the
+    # layers — notably --color-foreground resolves through the foreground layer.
+    # That is exactly the live-host behavior that made nord's alpha-0 foreground
+    # layer blank all var(--color-foreground, …) text; themes compensate in
+    # customCSS with !important pins (see mock/nord.yaml).
+    root.append(f"--background-base: {bg_hex}; --midground-base: {mid_hex};")
+    root.append(f"--background: {bg}; --midground: {mid}; --foreground: {fg};")
+    root.append("--color-background: var(--background);")
+    root.append("--color-foreground: var(--foreground);")
     if pal.get("warmGlow") is not None:
         root.append(f"--mock-warm-glow: {pal['warmGlow']};")
     if pal.get("noiseOpacity") is not None:
