@@ -283,6 +283,7 @@ TEXT_CASES: list[tuple[str, list[list[str]]]] = [
     ("saving indicator", [["nc-list"], ["nc-row"], ["nc-saving"]]),
     ("toggle label", [["nc-list"], ["nc-row"], ["nc-toggle-label"]]),
     ("warning banner", [["nc-banner"]]),
+    ("inline error", [["nc-inline-error"]]),
     ("confirm text", [["nc-list"], ["nc-confirm"], ["nc-confirm-text"]]),
     ("detail description", [["nc-list"], ["nc-detail"], ["nc-detail-desc"]]),
     ("signature", [["nc-list"], ["nc-detail"], ["nc-signature"]]),

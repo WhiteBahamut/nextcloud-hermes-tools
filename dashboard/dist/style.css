@@ -86,10 +86,20 @@
   gap: 0.75rem;
 }
 
+/* Inline error (failed PUT). Text must NOT use --color-destructive: under dark
+ * themes that is ~2.46:1 on card (nord #BF616A on #3B4252). Foreground text on a
+ * destructive-tinted panel instead — same pattern as .nc-confirm, so the pair is
+ * guaranteed-contrast on every host theme. */
 .nc-inline-error {
   margin: 0;
+  padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
-  color: var(--color-destructive, var(--destructive));
+  border: 1px solid var(--color-border, var(--border));
+  border-left: 3px solid var(--color-destructive, var(--destructive));
+  border-radius: var(--radius, var(--radius-md, 0.5rem));
+  background: var(--color-muted, var(--muted)); /* fallback when color-mix is unsupported */
+  background: color-mix(in srgb, var(--color-destructive, var(--destructive)) 8%, transparent);
+  color: var(--color-foreground, var(--foreground));
 }
 
 /* warning banner when destructive/mixed tools are ungated */

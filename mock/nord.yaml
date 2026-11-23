@@ -36,7 +36,7 @@ colorOverrides:
   primary: "#88C0D0"
   primaryForeground: "#2E3440"  # 6.24:1
   secondary: "#4C566A"
-  secondaryForeground: "#ECEFF4"  # 7.6:1
+  secondaryForeground: "#ECEFF4"  # 6.40:1 on secondary
   muted: "#434C5E"
   # Status-bar / footer secondary text sits on bg or card — #9AA5B4 was 4.03:1 on
   # nord1 (AA-large only); #BCCCDC (nord5 tint) is 6.14:1 on nord1 and 7.62:1 on nord0.
@@ -47,7 +47,8 @@ colorOverrides:
   destructiveForeground: "#ECEFF4"  # 3.55:1 on destructive bg (large/bold text)
   success: "#A3BE8C"
   warning: "#EBCB8B"
-  border: "#4C566A"          # border is a UI component — needs only 3:1 vs bg (4.79:1 here)
+  border: "#4C566A"          # decorative hairline: 1.69:1 vs bg, 1.36:1 vs card (below the
+                             # 3:1 non-text guideline; text on the surfaces carries meaning)
   input: "#434C5E"
   ring: "#88C0D0"
 

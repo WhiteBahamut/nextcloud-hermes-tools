@@ -508,7 +508,11 @@
           Button,
           {
             size: "sm",
-            destructive: true,
+            /* Not a solid destructive button: host destructive buttons render
+             * destructive-foreground on destructive, which under dark themes is
+             * AA-large only (nord: 3.55:1). The strip itself carries the alert
+             * (role=alert + destructive tint + border); the primary button is the
+             * guaranteed-contrast main action. */
             onClick: function () {
               setConfirmUngate(null);
               saveToggle(t, "/guardrails", { enabled: false }, "Ungated " + t.name + " (immediate)");
