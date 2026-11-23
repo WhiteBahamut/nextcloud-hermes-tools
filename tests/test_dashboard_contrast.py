@@ -8,6 +8,14 @@ or a regression in the stylesheet fails here instead of in the live dashboard.
 Pure stdlib, fully offline: the CSS is parsed with regexes, var()/color-mix()
 values are resolved against the pinned token map, and ratios are computed with
 the WCAG relative-luminance formula. No sockets, no plugin imports.
+
+The Hermes host ships `code { background: var(--selection-bg, var(--midground));
+color: var(--background) }` inside @layer base.
+test_code_elements_aa_with_host_base_rule models that layered rule on top of
+the plugin stylesheet (layered rules lose to any unlayered rule, then
+specificity/order decide within the unlayered set), so the <code> param and
+signature elements are checked with the host chip in play — not just against
+the plugin CSS alone, which cannot see element selectors.
 """
 
 from __future__ import annotations
@@ -51,6 +59,11 @@ NORD: dict[str, str] = {
     "--border": "#4C566A",
     "--color-ring": "#88C0D0",
     "--ring": "#88C0D0",
+    # host base-layer tokens read by `code { background: var(--selection-bg,
+    # var(--midground)) }` (nord8), pinned so the code-element test can
+    # resolve the chip color
+    "--selection-bg": "#D8DEE9",
+    "--midground": "#D8DEE9",
 }
 
 AA_TEXT = 4.5
@@ -279,6 +292,47 @@ TEXT_CASES: list[tuple[str, list[list[str]]]] = [
     ("empty state", [["nc-list"], ["nc-empty"]]),
 ]
 
+# The host's base layer paints every <code> element with a chip:
+# `code { background: var(--selection-bg, var(--midground)); color: var(--background) }`.
+# Cascade layers make any unlayered rule beat it regardless of specificity, so on
+# <code class="nc-param-name"> the plugin class always wins `color` while the chip
+# `background` survives unless the plugin clears it — under nord that is #D8DEE9
+# text on a #D8DEE9 chip (1:1, invisible). Pin the rule here so the guard sees it.
+HOST_BASE_CODE: dict[str, str] = {
+    "background": "var(--selection-bg, var(--midground))",
+    "color": "var(--background)",
+}
+
+
+def cascade_with_host_base(
+    rules: list[tuple[int, str, dict[str, str]]],
+    chain: list[frozenset[str]],
+) -> dict[str, str]:
+    """Declarations on a <code> element: host @layer base first, then the
+    unlayered plugin rules by specificity then document order."""
+    props: dict[str, str] = dict(HOST_BASE_CODE)
+    matched: list[tuple[int, int, dict[str, str]]] = []
+    for order, selector, decls in rules:
+        for sel in selector.split(","):
+            compounds = _compounds(sel.strip())
+            if compounds and _matches(compounds, chain):
+                matched.append((sum(len(c) for c in compounds), order, decls))
+                break
+    matched.sort(key=lambda t: (t[0], t[1]))
+    for _, _, decls in matched:
+        props.update(decls)
+    return props
+
+
+# (name, element class chain root..target) for every <code> element the bundle
+# renders (dist/index.js): the three param codes + the call signature.
+CODE_CASES: list[tuple[str, list[list[str]]]] = [
+    ("code param name", [["nc-param"], ["nc-param-name"]]),
+    ("code param type", [["nc-param"], ["nc-param-type"]]),
+    ("code param default", [["nc-param"], ["nc-param-default"]]),
+    ("code signature", [["nc-list"], ["nc-detail"], ["nc-signature"]]),
+]
+
 
 @pytest.mark.parametrize("name,chain", TEXT_CASES, ids=[c[0] for c in TEXT_CASES])
 def test_text_contrast_aa_under_nord(name: str, chain: list[list[str]]) -> None:
@@ -288,6 +342,26 @@ def test_text_contrast_aa_under_nord(name: str, chain: list[list[str]]) -> None:
     assert color, f"{name}: no color resolvable on {chain[-1]}"
     fg = resolve_color(color, NORD, CARD)
     bg = effective_bg(RULES, fchain, NORD, CARD)
+    ratio = contrast_ratio(fg, bg)
+    assert ratio >= AA_TEXT, f"{name}: {ratio:.2f}:1 ({fg} on {bg}) < {AA_TEXT}:1"
+
+
+@pytest.mark.parametrize("name,chain", CODE_CASES, ids=[c[0] for c in CODE_CASES])
+def test_code_elements_aa_with_host_base_rule(name: str, chain: list[list[str]]) -> None:
+    """Every <code> element must reach AA with the host's layered code rule in play.
+
+    Without this, the guard only sees the plugin stylesheet and measures e.g. the
+    param name as foreground on the .nc-param card (7.45:1 under nord) while the
+    live host paints its own chip behind the text (1:1 under nord).
+    """
+    fchain = [frozenset(c) for c in chain]
+    props = cascade_with_host_base(RULES, fchain)
+    color = props.get("color") or inherited_prop(RULES, fchain, "color")
+    assert color, f"{name}: no color resolvable on {chain[-1]}"
+    fg = resolve_color(color, NORD, CARD)
+    backdrop = effective_bg(RULES, fchain, NORD, CARD)
+    bg_decl = props.get("background")
+    bg = resolve_color(bg_decl, NORD, backdrop) if bg_decl else backdrop
     ratio = contrast_ratio(fg, bg)
     assert ratio >= AA_TEXT, f"{name}: {ratio:.2f}:1 ({fg} on {bg}) < {AA_TEXT}:1"
 

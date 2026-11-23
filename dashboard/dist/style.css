@@ -465,6 +465,10 @@
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--color-foreground, var(--foreground));
+  /* clear the host base-layer `code { background }` chip: an unlayered class
+   * rule wins `color` over it, but nothing else clears the chip, so under a
+   * dark theme the light foreground would sit on the light chip (1:1 nord) */
+  background: transparent;
 }
 
 .nc-param-type {
@@ -484,6 +488,8 @@
   font-size: 0.75rem;
   color: var(--color-foreground, var(--foreground));
   overflow-wrap: anywhere;
+  /* same host `code { background }` chip as .nc-param-name — see there */
+  background: transparent;
 }
 
 .nc-param-desc {
