@@ -126,7 +126,9 @@
   line-height: 1.5;
 }
 
+/* gate-class breakdown line: full-width row directly below the stat cards */
 .nc-gateline {
+  flex: 1 1 100%;
   margin: 0;
   font-size: 0.75rem;
   color: var(--color-muted-foreground, var(--muted-foreground));

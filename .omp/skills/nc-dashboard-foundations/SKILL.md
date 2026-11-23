@@ -38,8 +38,10 @@ Information architecture, top to bottom inside one host `Card`:
 CardHeader   title "Nextcloud tools" + lede + stat strip
              (Tools / Enabled / Approval-gated / Ungated — 4-up grid, muted
              tiles, status as a 3px left border, never colored numbers)
+             + gate-class breakdown line full-width below the stat cards
+             ("22 read · 22 write · …")
 CardContent  warning banner (destructive/mixed ungated) · collapsible
-             <details> explainer · gate-class breakdown line · nav panel (one
+             <details> explainer · nav panel (one
              bordered panel with hairline-divided rows, all the same style:
              a search row with the Input pill, then one row per pill group —
              CATEGORY (All tools + one pill per category), GATE and STATE

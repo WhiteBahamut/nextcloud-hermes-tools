@@ -779,7 +779,9 @@
             renderStat("Enabled", memo.enabledCount, memo.enabledCount === total ? "ok" : null),
             renderStat("Approval-gated", memo.guardedCount, null),
             renderStat("Ungated", memo.ungatedCount, memo.ungatedCount > 0 ? "warn" : "ok")
-          )
+          ),
+          // gate-class breakdown directly below the counter cards, full width
+          total > 0 && gateLine ? h("p", { className: "nc-gateline" }, gateLine) : null
         ),
         h(
           CardContent,
@@ -806,7 +808,6 @@
               "Each row has two switches. “Enabled” registers the tool for the agent or leaves it out — this applies on the next agent start / plugin reload. “Approval gate” is on by default: while it is on, write and destructive calls to the tool ask for your approval before they run (applies immediately); turning it off lets the agent call the tool without an approval prompt. A tool stays gated unless it is listed in the ungated_tools setting. The ▸ button at the start of a row expands it to show the tool's full description, call signature, and parameters."
             )
           ),
-          total > 0 && gateLine ? h("p", { className: "nc-gateline" }, gateLine) : null,
           h(
             "div",
             { className: "nc-nav" },
