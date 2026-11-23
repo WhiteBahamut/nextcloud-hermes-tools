@@ -43,7 +43,9 @@ CardContent  warning banner (destructive/mixed ungated) · collapsible
              bordered panel with hairline-divided rows, all the same style:
              a search row with the Input pill, then one row per pill group —
              CATEGORY (All tools + one pill per category), GATE and STATE
-             micro-labels, each leading its own pill group; pills carry counts)
+             micro-labels, each leading its own pill group; pills carry faceted
+             counts (each group counted within the other groups' selections,
+             never its own) and are disabled at 0 except the "All …" reset pill)
              · list bar over the list (result count "Showing X of N" left;
              expand-all / collapse-all / reload action pills top right) ·
              uppercase column header · rows (or per-category group headers

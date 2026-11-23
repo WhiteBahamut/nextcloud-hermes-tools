@@ -319,13 +319,18 @@
         var disabledCount = tools.length - enabledCount;
         var destructiveCount = (gateCounts.destructive || 0) + (gateCounts.mixed || 0);
         var q = query.toLowerCase();
-        var visible = tools.filter(function (t2) {
-          if (category !== "all" && categoryOf(t2.name) !== category) return false;
-          if (gateFilter !== "all" && t2.gate !== gateFilter) return false;
-          if (quick === "disabled" && t2.enabled) return false;
-          if (quick === "ungated" && t2.guarded) return false;
-          if (quick === "destructive" && t2.gate !== "destructive" && t2.gate !== "mixed") return false;
-          if (q) {
+        /* One predicate for every filter dimension; `skip` leaves that
+         * dimension out — used to compute faceted counts: each pill group's
+         * numbers reflect the other groups' selections, never its own. */
+        function pass(t2, skip) {
+          if (skip !== "category" && category !== "all" && categoryOf(t2.name) !== category) return false;
+          if (skip !== "gate" && gateFilter !== "all" && t2.gate !== gateFilter) return false;
+          if (skip !== "quick") {
+            if (quick === "disabled" && t2.enabled) return false;
+            if (quick === "ungated" && t2.guarded) return false;
+            if (quick === "destructive" && t2.gate !== "destructive" && t2.gate !== "mixed") return false;
+          }
+          if (skip !== "query" && q) {
             var hay = (
               t2.name +
               " " +
@@ -338,7 +343,37 @@
             if (hay.indexOf(q) === -1) return false;
           }
           return true;
+        }
+        var visible = tools.filter(function (t2) {
+          return pass(t2, null);
         });
+        /* Faceted pill counts: category / gate / state numbers each ignore
+         * their own group's selection, so selecting a pill re-counts the
+         * other two groups correctly. */
+        var catPillCounts = { other: 0 };
+        var catPillTotal = 0;
+        var gatePillCounts = {};
+        var gatePillTotal = 0;
+        var quickPillCounts = { all: 0, disabled: 0, ungated: 0, destructive: 0 };
+        for (i = 0; i < CATEGORIES.length; i++) catPillCounts[CATEGORIES[i][0]] = 0;
+        for (i = 0; i < tools.length; i++) {
+          t = tools[i];
+          if (pass(t, "category")) {
+            catPillTotal++;
+            cat = categoryOf(t.name);
+            catPillCounts[cat] = (catPillCounts[cat] || 0) + 1;
+          }
+          if (pass(t, "gate")) {
+            gatePillTotal++;
+            if (t.gate) gatePillCounts[t.gate] = (gatePillCounts[t.gate] || 0) + 1;
+          }
+          if (pass(t, "quick")) {
+            quickPillCounts.all++;
+            if (!t.enabled) quickPillCounts.disabled++;
+            if (!t.guarded) quickPillCounts.ungated++;
+            if (t.gate === "destructive" || t.gate === "mixed") quickPillCounts.destructive++;
+          }
+        }
         /* "All tools" groups the visible tools under per-category section headers. */
         var groups = [];
         for (i = 0; i < CATEGORIES.length; i++) {
@@ -362,6 +397,11 @@
           destructiveUngated: destructiveUngated,
           gateCounts: gateCounts,
           gates: gates,
+          catPillCounts: catPillCounts,
+          catPillTotal: catPillTotal,
+          gatePillCounts: gatePillCounts,
+          gatePillTotal: gatePillTotal,
+          quickPillCounts: quickPillCounts,
           visible: visible,
           groups: groups
         };
@@ -372,18 +412,12 @@
     var total = tools.length;
     var busy = busyName !== null;
 
-    /* count shown on a quick-filter pill (global counts, same as the tab counts) */
-    function quickCount(id) {
-      if (id === "all") return total;
-      if (id === "disabled") return memo.disabledCount;
-      if (id === "ungated") return memo.ungatedCount;
-      if (id === "destructive") return memo.destructiveCount;
-      return 0;
-    }
-
-    /* One pill for every toolbar filter — same class, same aria pattern, so the
-     * whole nav bar speaks one control language (search box aside). */
-    function filterPill(id, label, title, active, onPick) {
+    /* One pill for every nav filter — same class, same aria pattern. Pills show
+     * faceted counts (the other groups' selections applied, its own ignored) and
+     * are disabled at 0 so a pill can never be selected into an empty result;
+     * the group's "All …" pill always stays enabled as the reset path. */
+    function filterPill(id, count, label, title, active, onPick) {
+      var isAll = id === "all";
       return h(
         Button,
         {
@@ -393,12 +427,13 @@
           outlined: active,
           className: cn("nc-chip", active && "nc-chip-on"),
           title: title,
+          disabled: !isAll && count === 0,
           "aria-pressed": active ? "true" : "false",
           onClick: function () {
             onPick(id);
           }
         },
-        label
+        label + " (" + count + ")"
       );
     }
 
@@ -795,17 +830,17 @@
               h(
                 "div",
                 { className: "nc-chips", role: "group", "aria-label": "Filter by category" },
-                [filterPill("all", "All tools (" + total + ")", "Show all tools", category === "all", setCategory)]
+                [filterPill("all", memo.catPillTotal, "All tools", "Show all tools", category === "all", setCategory)]
                   .concat(
                     CATEGORIES.filter(function (c) {
                       return memo.counts[c[0]] > 0;
                     }).map(function (c) {
-                      return filterPill(c[0], c[2] + " (" + memo.counts[c[0]] + ")", "Show only " + c[2].toLowerCase() + " tools", category === c[0], setCategory);
+                      return filterPill(c[0], memo.catPillCounts[c[0]] || 0, c[2], "Show only " + c[2].toLowerCase() + " tools", category === c[0], setCategory);
                     })
                   )
                   .concat(
                     memo.counts.other > 0
-                      ? [filterPill("other", "Other (" + memo.counts.other + ")", "Show only other tools", category === "other", setCategory)]
+                      ? [filterPill("other", memo.catPillCounts.other || 0, "Other", "Show only other tools", category === "other", setCategory)]
                       : []
                   )
               )
@@ -817,11 +852,12 @@
               h(
                 "div",
                 { className: "nc-chips", role: "group", "aria-label": "Filter by gate class" },
-                [filterPill("all", "All gates (" + total + ")", "Show all gate classes", gateFilter === "all", setGateFilter)].concat(
+                [filterPill("all", memo.gatePillTotal, "All gates", "Show all gate classes", gateFilter === "all", setGateFilter)].concat(
                   memo.gates.map(function (g) {
                     return filterPill(
                       g,
-                      (GATE_LABEL[g] || g) + " (" + memo.gateCounts[g] + ")",
+                      memo.gatePillCounts[g] || 0,
+                      GATE_LABEL[g] || g,
                       "Show only " + (GATE_LABEL[g] || g).toLowerCase() + " tools",
                       gateFilter === g,
                       setGateFilter
@@ -838,7 +874,7 @@
                 "div",
                 { className: "nc-chips", role: "group", "aria-label": "Quick filters" },
                 QUICK_FILTERS.map(function (f) {
-                  return filterPill(f[0], f[1] + " (" + quickCount(f[0]) + ")", f[2], quick === f[0], setQuick);
+                  return filterPill(f[0], memo.quickPillCounts[f[0]] || 0, f[1], f[2], quick === f[0], setQuick);
                 })
               )
             )
