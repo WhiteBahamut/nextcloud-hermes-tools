@@ -1,5 +1,5 @@
 name: nextcloud-tools
-version: 0.27.0
+version: 0.28.0
 description: >-
   Nextcloud toolset for Hermes Agent: 52 tools against one Nextcloud server -
   files (WebDAV), unified/full-text search, shares, Talk, calendar, tasks,
