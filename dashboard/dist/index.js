@@ -10,8 +10,8 @@
  *    flags destructive/ghost/invert/outlined + size xs|sm|default|icon),
  *    Checkbox (Radix: checked/onCheckedChange), Tabs (RENDER-PROP:
  *    children(active, setActive) + defaultValue, no TabsContent),
- *    TabsTrigger({value, active, onClick}), TabsList, Select({value,
- *    onValueChange}) + SelectOption({value}), Separator, Input, Toast({toast}).
+ *    TabsTrigger({value, active, onClick}), TabsList, Separator, Input,
+ *    Toast({toast}).
  *  - hooks: useState/useEffect/useMemo/useToast; utils.cn; SDK.fetchJSON (auth
  *    injecting, throws on !ok, parses JSON) with a native-fetch fallback here.
  *  - theme CSS vars are the --color-* family (+ --radius, --theme-font-mono);
@@ -62,8 +62,6 @@
   var Tabs = SDK.components.Tabs;
   var TabsList = SDK.components.TabsList;
   var TabsTrigger = SDK.components.TabsTrigger;
-  var Select = SDK.components.Select;
-  var SelectOption = SDK.components.SelectOption;
   var Separator = SDK.components.Separator;
   var Input = SDK.components.Input;
 
@@ -124,7 +122,7 @@
   var GATE_LABEL = { read: "Read", write: "Write", destructive: "Destructive", mixed: "Mixed" };
   var GATE_ORDER = ["read", "write", "destructive", "mixed"];
 
-  /* Quick-filter chips in the toolbar. [id, label, title] — "destructive" also
+  /* Quick-filter pills in the toolbar. [id, label, title] — "destructive" also
    * matches "mixed" (nc_ocs/nc_comments gate per args), same as the warning banner. */
   var QUICK_FILTERS = [
     ["all", "All", "Show all tools"],
@@ -322,6 +320,8 @@
         var gates = GATE_ORDER.filter(function (g) {
           return gateCounts[g];
         });
+        var disabledCount = tools.length - enabledCount;
+        var destructiveCount = (gateCounts.destructive || 0) + (gateCounts.mixed || 0);
         var q = query.toLowerCase();
         var visible = tools.filter(function (t2) {
           if (gateFilter !== "all" && t2.gate !== gateFilter) return false;
@@ -360,6 +360,8 @@
           enabledCount: enabledCount,
           guardedCount: guardedCount,
           ungatedCount: tools.length - guardedCount,
+          disabledCount: disabledCount,
+          destructiveCount: destructiveCount,
           destructiveUngated: destructiveUngated,
           gateCounts: gateCounts,
           gates: gates,
@@ -372,6 +374,36 @@
 
     var total = tools.length;
     var busy = busyName !== null;
+
+    /* count shown on a quick-filter pill (global counts, same as the tab counts) */
+    function quickCount(id) {
+      if (id === "all") return total;
+      if (id === "disabled") return memo.disabledCount;
+      if (id === "ungated") return memo.ungatedCount;
+      if (id === "destructive") return memo.destructiveCount;
+      return 0;
+    }
+
+    /* One pill for every toolbar filter — same class, same aria pattern, so the
+     * whole nav bar speaks one control language (search box aside). */
+    function filterPill(id, label, title, active, onPick) {
+      return h(
+        Button,
+        {
+          key: id,
+          size: "sm",
+          ghost: !active,
+          outlined: active,
+          className: cn("nc-chip", active && "nc-chip-on"),
+          title: title,
+          "aria-pressed": active ? "true" : "false",
+          onClick: function () {
+            onPick(id);
+          }
+        },
+        label
+      );
+    }
 
     function toggleControl(props) {
       if (Checkbox) return h(Checkbox, props);
@@ -750,41 +782,26 @@
               }
             }),
             h(
-              Select,
-              {
-                className: "nc-gatefilter",
-                value: gateFilter,
-                "aria-label": "Filter by gate class",
-                onValueChange: function (v) {
-                  setGateFilter(v);
-                }
-              },
-              h(SelectOption, { key: "all", value: "all" }, "All gates"),
-              memo.gates.map(function (g) {
-                return h(SelectOption, { key: g, value: g }, (GATE_LABEL[g] || g) + " (" + memo.gateCounts[g] + ")");
-              })
+              "div",
+              { className: "nc-chips", role: "group", "aria-label": "Filter by gate class" },
+              [filterPill("all", "All gates (" + total + ")", "Show all gate classes", gateFilter === "all", setGateFilter)].concat(
+                memo.gates.map(function (g) {
+                  return filterPill(
+                    g,
+                    (GATE_LABEL[g] || g) + " (" + memo.gateCounts[g] + ")",
+                    "Show only " + (GATE_LABEL[g] || g).toLowerCase() + " tools",
+                    gateFilter === g,
+                    setGateFilter
+                  );
+                })
+              )
             ),
+            h("span", { className: "nc-vsep", "aria-hidden": "true" }),
             h(
               "div",
               { className: "nc-chips", role: "group", "aria-label": "Quick filters" },
               QUICK_FILTERS.map(function (f) {
-                var active = quick === f[0];
-                return h(
-                  Button,
-                  {
-                    key: f[0],
-                    size: "sm",
-                    ghost: !active,
-                    outlined: active,
-                    className: "nc-chip",
-                    title: f[2],
-                    "aria-pressed": active ? "true" : "false",
-                    onClick: function () {
-                      setQuick(f[0]);
-                    }
-                  },
-                  f[1]
-                );
+                return filterPill(f[0], f[1] + " (" + quickCount(f[0]) + ")", f[2], quick === f[0], setQuick);
               })
             ),
             h(
@@ -792,12 +809,12 @@
               { className: "nc-actions" },
               h(
                 Button,
-                { size: "sm", ghost: true, onClick: function () { setAllExpanded(true); }, "aria-label": "Expand all visible tools" },
+                { size: "sm", ghost: true, className: "nc-action", onClick: function () { setAllExpanded(true); }, "aria-label": "Expand all visible tools" },
                 "Expand all"
               ),
               h(
                 Button,
-                { size: "sm", ghost: true, onClick: function () { setAllExpanded(false); }, "aria-label": "Collapse all visible tools" },
+                { size: "sm", ghost: true, className: "nc-action", onClick: function () { setAllExpanded(false); }, "aria-label": "Collapse all visible tools" },
                 "Collapse all"
               ),
               h(
@@ -805,6 +822,7 @@
                 {
                   size: "sm",
                   ghost: true,
+                  className: "nc-action",
                   disabled: loading,
                   "aria-label": "Reload tool list",
                   onClick: function () {

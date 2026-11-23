@@ -40,12 +40,14 @@ CardHeader   title "Nextcloud tools" + lede + stat strip
              tiles, status as a 3px left border, never colored numbers)
 CardContent  warning banner (destructive/mixed ungated) · collapsible
              <details> explainer · gate-class breakdown line · toolbar
-             (search Input · gate Select · quick-filter chips · expand-all /
-             collapse-all / reload) · Separator · category Tabs with counts
+             (search Input · gate-class filter pills · divider · quick-filter
+             pills, all one pill style with counts · expand-all / collapse-all /
+             reload action pills) · Separator · category Tabs with counts
              · uppercase column header · rows (or per-category group headers
              in the All tab)
 Row          [▸ expand] tool name (mono) + 1-line desc · gate pill · Enabled
-             toggle · Approval-gate toggle
+             toggle · Approval-gate toggle (row text captions hidden above
+             40rem — the column header carries them; they return at <=40rem)
 Row expanded doc panel: description · copyable call signature · parameter
              cards (mono name · type pill · required badge · default · desc)
 Inline strip destructive-ungate confirmation (role=alert)
@@ -103,7 +105,7 @@ Rules that exist because of measured failures:
 
 `dist/index.js` consumes exactly this surface of
 `window.__HERMES_PLUGIN_SDK__` (verified against the pinned Hermes tag,
-@nous-research/ui); `mock/mock_sdk.js` implements the same surface:
+@nous-research/ui); `mock/mock_sdk.js` implements at least this surface:
 
 - `React.createElement` / `React.Fragment`
 - hooks: `useState` / `useEffect` / `useMemo` / `useToast` (toast auto-dismiss
@@ -115,8 +117,7 @@ Rules that exist because of measured failures:
   xs|sm|default|icon), `Checkbox` (Radix: `checked`/`onCheckedChange`),
   `Tabs` (**render-prop**: `children(active, setActive)` + `defaultValue`, no
   `TabsContent`), `TabsTrigger({value, active, onClick})`, `TabsList`,
-  `Select({value, onValueChange})` + `SelectOption({value})`, `Separator`,
-  `Input`, `Toast({toast})`
+  `Separator`, `Input`, `Toast({toast})`
 - `SDK.fetchJSON` (auth-injecting, throws on !ok, parses JSON)
 
 Anything outside this surface MUST get a defensive runtime fallback (the
