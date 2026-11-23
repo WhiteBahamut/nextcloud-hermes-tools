@@ -27,16 +27,39 @@
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
+
+  /* Model the host DS base layer: every bare <code> gets a selection-style chip.
+   * Layered rules lose to any unlayered rule, so dashboard/dist/style.css and a
+   * theme's customCSS (e.g. nord's `code { background: transparent }`) override
+   * this exactly like in the real host. */
+  @layer base {
+    code { background: var(--selection-bg, var(--midground)); color: var(--background); }
+  }
+
   body {
     margin: 0;
     padding: 1.5rem 1rem 3rem;
     background: var(--color-background, var(--background));
     color: var(--color-foreground, var(--foreground));
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-family: var(--font-sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif);
     font-size: 14px;
     line-height: 1.45;
   }
   code { font-family: var(--theme-font-mono, var(--font-mono)); }
+
+  /* Host <Backdrop/> stand-in: warmGlow vignette + grain, driven by the active
+   * theme's palette (vars only set when a yaml theme provides them). */
+  .mock-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.32'/%3E%3C/svg%3E"),
+      radial-gradient(120% 90% at 50% -20%, var(--mock-warm-glow, transparent), transparent 60%);
+    opacity: var(--mock-noise-opacity, 0);
+  }
+  .mock-banner, #root { position: relative; z-index: 1; }
 
   /* mock banner so it is obvious this is not the real Hermes dashboard */
   .mock-banner {
@@ -47,6 +70,26 @@
     border-radius: var(--radius-md, var(--radius));
     color: var(--color-warning, var(--warning));
     font-size: 0.8rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.75rem;
+  }
+  .mock-banner .mock-banner-text { flex: 1 1 24rem; }
+  .mock-theme-picker { display: inline-flex; align-items: center; gap: 0.375rem; white-space: nowrap; }
+  .mock-theme-picker select {
+    font: inherit;
+    font-size: 0.78rem;
+    padding: 0.15rem 0.4rem;
+    border: 1px solid var(--color-border, var(--border));
+    border-radius: var(--radius-sm, 0.25rem);
+    background: var(--color-card, var(--card));
+    color: var(--color-card-foreground, var(--card-foreground, inherit));
+    max-width: 16rem;
+  }
+  .mock-theme-picker select:focus-visible {
+    outline: 2px solid var(--color-ring, var(--ring));
+    outline-offset: 1px;
   }
 
   /* mock stand-ins for the host SDK components (Card/Button/Badge/…).
@@ -77,7 +120,7 @@
   .mock-btn-ghost { background: transparent; color: var(--color-foreground, var(--foreground)); border-color: transparent; }
   .mock-btn-ghost:hover { background: var(--color-muted, var(--muted)); }
   .mock-btn-outlined { background: transparent; color: var(--color-foreground, var(--foreground)); }
-  .mock-btn-destructive { background: var(--color-destructive, var(--destructive)); border-color: var(--color-destructive, var(--destructive)); color: #fff; }
+  .mock-btn-destructive { background: var(--color-destructive, var(--destructive)); border-color: var(--color-destructive, var(--destructive)); color: var(--color-destructive-foreground, var(--destructive-foreground, #fff)); }
   .mock-btn-invert { background: var(--color-foreground, var(--foreground)); color: var(--color-background, var(--background)); }
 
   .mock-badge {
@@ -92,7 +135,7 @@
     white-space: nowrap;
   }
   .mock-badge-default { background: var(--color-primary, var(--primary)); border-color: var(--color-primary, var(--primary)); color: var(--color-primary-foreground, #fff); }
-  .mock-badge-destructive { background: var(--color-destructive, var(--destructive)); border-color: var(--color-destructive, var(--destructive)); color: #fff; }
+  .mock-badge-destructive { background: var(--color-destructive, var(--destructive)); border-color: var(--color-destructive, var(--destructive)); color: var(--color-destructive-foreground, var(--destructive-foreground, #fff)); }
   .mock-badge-success { background: var(--color-success, var(--success)); border-color: var(--color-success, var(--success)); color: #fff; }
   .mock-badge-warning { background: var(--color-warning, var(--warning)); border-color: var(--color-warning, var(--warning)); color: #fff; }
 
@@ -129,13 +172,91 @@
 </style>
 </head>
 <body>
+  <div class="mock-backdrop" aria-hidden="true"></div>
   <div class="mock-banner">
-    LOCAL MOCK — not the Hermes dashboard. Serves the real <code>dashboard/dist/</code> bundle against a
-    stand-in plugin API (see <code>mock/mock_server.py</code>). State lives in
-    <code>mock/state.json</code>; delete it to reset.
+    <span class="mock-banner-text">
+      LOCAL MOCK — not the Hermes dashboard. Serves the real <code>dashboard/dist/</code> bundle against a
+      stand-in plugin API (see <code>mock/mock_server.py</code>). State lives in
+      <code>mock/state.json</code>; delete it to reset.
+    </span>
+    <label class="mock-theme-picker">Theme
+      <select id="mock-theme-select" aria-label="Mock theme (host dashboard theme to preview)"></select>
+    </label>
   </div>
   <div id="root"></div>
   <script src="/mock-sdk.js"></script>
   <script src="/dist/index.js"></script>
+  <script>
+  /* Mock theme picker: lists the built-in mock theme + every mock/*.yaml (served
+   * by GET /themes) and applies the selected one as an injected <style> on top of
+   * the inline tokens above (same :root specificity, later sheet wins). The choice
+   * persists in localStorage. Mirrors the host flow: pick a theme in Appearance,
+   * host rewrites --color-* + injects customCSS as a scoped <style> tag. */
+  (function () {
+    "use strict";
+    var KEY = "nc-mock-theme";
+    var sel = document.getElementById("mock-theme-select");
+
+    function savedTheme() {
+      try { return localStorage.getItem(KEY); } catch (e) { return null; }
+    }
+
+    function applyTheme(name, meta) {
+      var oldStyle = document.querySelector("style[data-mock-theme]");
+      if (oldStyle) oldStyle.parentNode.removeChild(oldStyle);
+      var oldFont = document.querySelector("link[data-mock-theme-font]");
+      if (oldFont) oldFont.parentNode.removeChild(oldFont);
+      document.documentElement.removeAttribute("data-mock-theme");
+      if (!name || name === "__default__" || !meta) return;
+      document.documentElement.setAttribute("data-mock-theme", name);
+      fetch("/themes/" + encodeURIComponent(name) + ".css").then(function (r) {
+        if (!r.ok) throw new Error("theme css " + r.status);
+        return r.text();
+      }).then(function (css) {
+        var st = document.createElement("style");
+        st.setAttribute("data-mock-theme", name);
+        st.textContent = css;
+        document.head.appendChild(st);
+      }).catch(function (err) {
+        console.error("mock theme apply failed:", err);
+      });
+      if (meta.fontUrl) {
+        var link = document.createElement("link");
+        link.setAttribute("rel", "stylesheet");
+        link.setAttribute("href", meta.fontUrl);
+        link.setAttribute("data-mock-theme-font", name);
+        document.head.appendChild(link);
+      }
+    }
+
+    fetch("/themes").then(function (r) { return r.json(); }).then(function (data) {
+      var themes = (data && data.themes) || [];
+      themes.forEach(function (t) {
+        var opt = document.createElement("option");
+        opt.value = t.name;
+        opt.textContent = t.label || t.name;
+        if (t.description) opt.title = t.description;
+        sel.appendChild(opt);
+      });
+      var wanted = savedTheme();
+      var viaUrl = null;
+      try { viaUrl = new URLSearchParams(location.search).get("theme"); } catch (e) { /* old engines */ }
+      var known = themes.some(function (t) { return t.name === wanted; });
+      var knownUrl = themes.some(function (t) { return t.name === viaUrl; });
+      var initial = knownUrl ? viaUrl : (known ? wanted : (themes[0] && themes[0].name));
+      if (knownUrl) { try { localStorage.setItem(KEY, viaUrl); } catch (e) { /* private mode */ } }
+      if (initial) {
+        sel.value = initial;
+        applyTheme(initial, themes.filter(function (t) { return t.name === initial; })[0]);
+      }
+      sel.addEventListener("change", function () {
+        try { localStorage.setItem(KEY, sel.value); } catch (e) { /* private mode */ }
+        applyTheme(sel.value, themes.filter(function (t) { return t.name === sel.value; })[0]);
+      });
+    }).catch(function (err) {
+      console.error("mock theme list failed:", err);
+    });
+  })();
+  </script>
 </body>
 </html>

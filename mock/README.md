@@ -35,6 +35,36 @@ Tool names, descriptions, parameter docs and gate classes are read live from
 always matches the plugin. Toggle state is persisted only to `state.json` —
 the real `~/.hermes/config.yaml` is never touched.
 
+## Theme picker (preview real dashboard themes)
+
+The banner has a **Theme** select with two kinds of entries:
+
+- `Mock light (zinc) — built-in` — the inline tokens in `index.html` (the original
+  mock look); selecting it removes any injected theme overrides.
+- every `mock/*.yaml` — a real Hermes dashboard theme (e.g. `nord.yaml`), compiled
+  by `mock/themes.py` and injected exactly like the host does: `--color-*` tokens
+  from `palette`/`colorOverrides`, `--component-*` from `componentStyles`,
+  typography/layout rules, the raw `customCSS` block, and the `fontUrl` `<link>`.
+
+The choice persists in `localStorage` (`nc-mock-theme`), and `?theme=nord` in the
+URL deep-links a theme (it wins over the saved one), so headless screenshots work:
+
+```
+CHROME=.omp/puppeteer/chrome/linux-150.0.7871.24/chrome-linux64/chrome
+$CHROME --headless=new --no-sandbox --disable-gpu --window-size=1440,2400 \
+  --screenshot=/tmp/nord.png --virtual-time-budget=6000 "http://127.0.0.1:8787/?theme=nord"
+```
+
+New routes (mock-only, not part of the plugin wire contract):
+
+- `GET /themes` → `{"themes": [{name, label, description, fontUrl, builtin}]}`
+- `GET /themes/<name>.css` → compiled theme stylesheet (`__default__` → empty sheet)
+
+Drop any `~/.hermes/dashboard-themes/*.yaml` into `mock/` to preview it. The mock
+also models the host DS `@layer base` code-chip rule and the `<Backdrop/>`
+vignette/grain (driven by `palette.warmGlow` / `palette.noiseOpacity`), so a
+theme's `customCSS` interacts with them the same way as in the real host.
+
 ## Limitations vs the real host
 
 - The SDK is a small full-rebuild renderer, not real React; hook state is keyed

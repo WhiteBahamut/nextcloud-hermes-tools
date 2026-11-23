@@ -5,6 +5,10 @@ Serves, on one port (default http://127.0.0.1:8787/):
   GET /mock-sdk.js                       -> mock SDK (mini-React + components)
   GET /dist/index.js, /dist/style.css    -> the REAL dashboard bundle, unmodified
   GET /manifest.json                     -> the real dashboard/manifest.json
+  GET /themes                            -> {"themes": [{name, label, description, fontUrl, builtin}]}
+                                             (built-in mock theme + every mock/*.yaml, e.g. nord)
+  GET /themes/<name>.css                 -> that theme compiled to CSS (mock/themes.py);
+                                             the built-in "__default__" theme returns an empty sheet
   GET /api/plugins/nextcloud-tools/tools -> {"tools": [...]}   (same payload as plugin_api.py)
   PUT /api/plugins/nextcloud-tools/tools/{name}            body {"enabled": bool}
       -> {"ok": true, "disabled_tools": [...]}
@@ -52,8 +56,11 @@ if "nextcloud_tools" not in sys.modules:
 
 from nextcloud_tools import dashboard_store  # noqa: E402
 
+from themes import list_themes, theme_css  # noqa: E402
+
 API_PREFIX = "/api/plugins/nextcloud-tools"
 _PUT_RE = re.compile(r"^" + re.escape(API_PREFIX) + r"/tools/(nc_\w+)(/guardrails)?$")
+_THEME_CSS_RE = re.compile(r"^/themes/([A-Za-z0-9_.-]+)\.css$")
 
 _CONTENT_TYPES = {
     ".html": "text/html; charset=utf-8",
@@ -173,6 +180,21 @@ class MockHandler(BaseHTTPRequestHandler):
             self._send_file(MOCK_ROOT / "mock_sdk.js")
         elif path == "/manifest.json":
             self._send_file(DASH_ROOT / "manifest.json")
+        elif path == "/themes":
+            self._send_json(200, {"themes": list_themes(MOCK_ROOT)})
+        elif (m := _THEME_CSS_RE.match(path)):
+            try:
+                css = theme_css(MOCK_ROOT, m.group(1))
+            except ValueError as exc:
+                self._send_json(404, {"detail": str(exc)})
+                return
+            raw = css.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/css; charset=utf-8")
+            self.send_header("Content-Length", str(len(raw)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(raw)
         elif path.startswith("/dist/"):
             self._static(DASH_ROOT, path.lstrip("/"))
         elif path == API_PREFIX + "/tools":
