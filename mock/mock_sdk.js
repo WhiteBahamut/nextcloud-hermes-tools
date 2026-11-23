@@ -8,18 +8,13 @@
  *   utils.cn
  *   components: Card, CardHeader, CardTitle, CardContent, Badge (tone prop),
  *     Button (size + destructive/ghost/invert/outlined flags), Checkbox (Radix-style
- *     checked/onCheckedChange), Toast({toast}), Tabs (RENDER-PROP children(active,
- *     setActive) + defaultValue), TabsList, TabsTrigger({value, active, onClick}),
- *     Select({value, onValueChange}) + SelectOption({value}), Separator, Input
+ *     checked/onCheckedChange), Toast({toast}), Input
  *   fetchJSON (throws on !ok, parses JSON)
  * and window.__HERMES_PLUGINS__.register(name, component), which mounts the page.
  *
  * The "React" here is a tiny full-rebuild renderer with per-component-path hook
  * state; good enough for one page component. Focus/selection of the active input
  * is restored across rebuilds so the controlled search box stays usable.
- * Tabs keeps its active-tab state in a module-level store (the bundle renders it
- * conditionally, so a hook-path-keyed slot could be remounted); only one Tabs
- * exists per page, keyed by defaultValue.
  */
 (function () {
   "use strict";
@@ -271,8 +266,6 @@
   var CardHeader = passthrough("div", "mock-card-header");
   var CardTitle = passthrough("div", "mock-card-title");
   var CardContent = passthrough("div", "mock-card-content");
-  var Separator = passthrough("hr", "mock-sep");
-  var TabsList = passthrough("div", "mock-tabslist", { role: "tablist" });
 
   function Badge(props) {
     var tone = props.tone || "default";
@@ -314,49 +307,6 @@
     p.className = "mock-input" + (props.className ? " " + props.className : "");
     p.type = props.type || "text";
     return createElement("input", p);
-  }
-
-  function Select(props) {
-    var p = {};
-    for (var k in props) if (k !== "children") p[k] = props[k];
-    p.className = "mock-select" + (props.className ? " " + props.className : "");
-    p.value = props.value;
-    p.onChange = function (e) {
-      if (props.onValueChange) props.onValueChange(e.target.value);
-    };
-    return createElement("select", p, props.children);
-  }
-
-  function SelectOption(props) {
-    return createElement("option", { value: props.value }, props.children);
-  }
-
-  function TabsTrigger(props) {
-    return createElement(
-      "button",
-      {
-        role: "tab",
-        "aria-selected": props.active ? "true" : "false",
-        className: "mock-tab" + (props.active ? " mock-tab-active" : "") + (props.className ? " " + props.className : ""),
-        onClick: props.onClick
-      },
-      props.children
-    );
-  }
-
-  /* Tabs is a render-prop: children(active, setActive). Active-tab state lives in a
-   * module-level store keyed by defaultValue so conditional siblings in the page
-   * can never remount it and lose the selected tab. */
-  var tabsState = {};
-  function Tabs(props) {
-    var key = props.defaultValue || "default";
-    if (!(key in tabsState)) tabsState[key] = key;
-    var setActive = function (v) {
-      tabsState[key] = v;
-      scheduleRender();
-    };
-    var child = Array.isArray(props.children) ? props.children[0] : props.children;
-    return child(tabsState[key], setActive);
   }
 
   function Toast(props) {
@@ -414,12 +364,6 @@
       Button: Button,
       Checkbox: Checkbox,
       Toast: Toast,
-      Tabs: Tabs,
-      TabsList: TabsList,
-      TabsTrigger: TabsTrigger,
-      Select: Select,
-      SelectOption: SelectOption,
-      Separator: Separator,
       Input: Input
     },
     fetchJSON: fetchJSON

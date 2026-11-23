@@ -290,10 +290,12 @@ TEXT_CASES: list[tuple[str, list[list[str]]]] = [
     ("gate line", [["nc-gateline"]]),
     ("lede", [["nc-lede"]]),
     ("empty state", [["nc-list"], ["nc-empty"]]),
-    ("toolbar search input", [["nc-toolbar"], ["nc-search"]]),
-    ("filter pill", [["nc-toolbar"], ["nc-chip"]]),
-    ("filter pill active", [["nc-toolbar"], ["nc-chip", "nc-chip-on"]]),
-    ("toolbar action pill", [["nc-toolbar"], ["nc-action"]]),
+    ("nav panel search input", [["nc-nav"], ["nc-navrow"], ["nc-search"]]),
+    ("nav row filter label", [["nc-nav"], ["nc-navrow"], ["nc-filterlabel"]]),
+    ("filter pill", [["nc-nav"], ["nc-chip"]]),
+    ("filter pill active", [["nc-nav"], ["nc-chip", "nc-chip-on"]]),
+    ("list-bar result count", [["nc-listbar"], ["nc-count"]]),
+    ("list-bar action pill", [["nc-listbar"], ["nc-action"]]),
 ]
 
 # The host's base layer paints every <code> element with a chip:
@@ -428,10 +430,12 @@ def test_font_size_floor() -> None:
         [["nc-param-type"]],
         [["nc-param-default"]],
         [["nc-row"], ["nc-gatebadge"]],
-        [["nc-toolbar"], ["nc-search"]],
-        [["nc-toolbar"], ["nc-chip"]],
-        [["nc-toolbar"], ["nc-chip", "nc-chip-on"]],
-        [["nc-toolbar"], ["nc-action"]],
+        [["nc-nav"], ["nc-navrow"], ["nc-search"]],
+        [["nc-nav"], ["nc-navrow"], ["nc-filterlabel"]],
+        [["nc-nav"], ["nc-chip"]],
+        [["nc-nav"], ["nc-chip", "nc-chip-on"]],
+        [["nc-listbar"], ["nc-count"]],
+        [["nc-listbar"], ["nc-action"]],
     ]
     for chain in floor_selectors:
         fchain = [frozenset(c) for c in chain]

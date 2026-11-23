@@ -96,7 +96,7 @@
   .mock-badge-success { background: var(--color-success, var(--success)); border-color: var(--color-success, var(--success)); color: #fff; }
   .mock-badge-warning { background: var(--color-warning, var(--warning)); border-color: var(--color-warning, var(--warning)); color: #fff; }
 
-  .mock-input, .mock-select {
+  .mock-input {
     font: inherit;
     padding: 0.35rem 0.6rem;
     border: 1px solid var(--color-border, var(--border));
@@ -104,31 +104,11 @@
     background: var(--color-background, var(--background));
     color: inherit;
   }
-  .mock-input:focus-visible, .mock-select:focus-visible, .mock-btn:focus-visible, .mock-tab:focus-visible, .mock-checkbox:focus-visible {
+  .mock-input:focus-visible, .mock-btn:focus-visible, .mock-checkbox:focus-visible {
     outline: 2px solid var(--color-ring, var(--ring));
     outline-offset: 1px;
   }
   .mock-checkbox { width: 1rem; height: 1rem; accent-color: var(--color-primary, var(--primary)); }
-
-  .mock-tabslist { display: flex; flex-wrap: wrap; gap: 0.25rem; }
-  .mock-tab {
-    appearance: none;
-    border: 1px solid transparent;
-    background: transparent;
-    color: var(--color-muted-foreground, var(--muted-foreground));
-    padding: 0.3rem 0.7rem;
-    border-radius: var(--radius-md, var(--radius-sm));
-    font: inherit;
-    font-size: 0.85rem;
-    cursor: pointer;
-  }
-  .mock-tab-active {
-    background: var(--color-muted, var(--muted));
-    color: var(--color-foreground, var(--foreground));
-    border-color: var(--color-border, var(--border));
-  }
-
-  .mock-sep { border: none; border-top: 1px solid var(--color-border, var(--border)); margin: 0; }
 
   .mock-toast {
     position: fixed;

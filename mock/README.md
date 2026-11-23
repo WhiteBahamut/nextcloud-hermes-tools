@@ -38,7 +38,6 @@ the real `~/.hermes/config.yaml` is never touched.
 ## Limitations vs the real host
 
 - The SDK is a small full-rebuild renderer, not real React; hook state is keyed
-  by component path (fine for this single page). Tabs keeps its active tab in a
-  module-level store so conditional siblings can't remount it.
+  by component path (fine for this single page).
 - No auth/session token — `fetchJSON` is plain `fetch`.
 - Everything is same-origin, so no CORS handling.

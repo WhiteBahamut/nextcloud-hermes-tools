@@ -39,12 +39,15 @@ CardHeader   title "Nextcloud tools" + lede + stat strip
              (Tools / Enabled / Approval-gated / Ungated — 4-up grid, muted
              tiles, status as a 3px left border, never colored numbers)
 CardContent  warning banner (destructive/mixed ungated) · collapsible
-             <details> explainer · gate-class breakdown line · toolbar
-             (search Input · gate-class filter pills · divider · quick-filter
-             pills, all one pill style with counts · expand-all / collapse-all /
-             reload action pills) · Separator · category Tabs with counts
-             · uppercase column header · rows (or per-category group headers
-             in the All tab)
+             <details> explainer · gate-class breakdown line · nav panel (one
+             bordered panel with hairline-divided rows, all the same style:
+             a search row with the Input pill, then one row per pill group —
+             CATEGORY (All tools + one pill per category), GATE and STATE
+             micro-labels, each leading its own pill group; pills carry counts)
+             · list bar over the list (result count "Showing X of N" left;
+             expand-all / collapse-all / reload action pills top right) ·
+             uppercase column header · rows (or per-category group headers
+             for the All-tools pill)
 Row          [▸ expand] tool name (mono) + 1-line desc · gate pill · Enabled
              toggle · Approval-gate toggle (row text captions hidden above
              40rem — the column header carries them; they return at <=40rem)
@@ -115,9 +118,7 @@ Rules that exist because of measured failures:
   prop: default|secondary|outline|destructive|success|warning), `Button`
   (boolean flags `destructive`/`ghost`/`invert`/`outlined` + `size`
   xs|sm|default|icon), `Checkbox` (Radix: `checked`/`onCheckedChange`),
-  `Tabs` (**render-prop**: `children(active, setActive)` + `defaultValue`, no
-  `TabsContent`), `TabsTrigger({value, active, onClick})`, `TabsList`,
-  `Separator`, `Input`, `Toast({toast})`
+  `Input`, `Toast({toast})`
 - `SDK.fetchJSON` (auth-injecting, throws on !ok, parses JSON)
 
 Anything outside this surface MUST get a defensive runtime fallback (the
@@ -150,11 +151,10 @@ authoritative); only one PUT is in flight at a time (config write race);
 - Expanded rows persist in localStorage key `nc-tools-expanded-v1` (guarded
   try/catch for private mode); updates use functional `setExpanded(prev => …)`
   so batched events never overwrite each other.
-- The mock's mini-React keys hook state by component path and keeps the Tabs
-  active tab in a module-level store because the bundle renders Tabs
-  conditionally; the search input's focus/selection is restored across
-  rebuilds. When reviewing interaction bugs in the mock, check whether the bug
-  is in `dist/index.js` or in these mock limitations before reporting it.
+- The mock's mini-React keys hook state by component path (fine for this single
+  page); the search input's focus/selection is restored across rebuilds. When
+  reviewing interaction bugs in the mock, check whether the bug is in
+  `dist/index.js` or in these mock limitations before reporting it.
 - Filtering/search is client-side over the fetched list — no refetch per
   keystroke.
 

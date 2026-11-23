@@ -8,10 +8,7 @@
  *  - components: Card, CardHeader, CardTitle, CardContent, Badge (tone prop:
  *    default|secondary|outline|destructive|success|warning), Button (boolean
  *    flags destructive/ghost/invert/outlined + size xs|sm|default|icon),
- *    Checkbox (Radix: checked/onCheckedChange), Tabs (RENDER-PROP:
- *    children(active, setActive) + defaultValue, no TabsContent),
- *    TabsTrigger({value, active, onClick}), TabsList, Separator, Input,
- *    Toast({toast}).
+ *    Checkbox (Radix: checked/onCheckedChange), Input, Toast({toast}).
  *  - hooks: useState/useEffect/useMemo/useToast; utils.cn; SDK.fetchJSON (auth
  *    injecting, throws on !ok, parses JSON) with a native-fetch fallback here.
  *  - theme CSS vars are the --color-* family (+ --radius, --theme-font-mono);
@@ -59,10 +56,6 @@
   var Button = SDK.components.Button; // fallback toggle on hosts without Checkbox
   var Checkbox = SDK.components.Checkbox;
   var Toast = SDK.components.Toast;
-  var Tabs = SDK.components.Tabs;
-  var TabsList = SDK.components.TabsList;
-  var TabsTrigger = SDK.components.TabsTrigger;
-  var Separator = SDK.components.Separator;
   var Input = SDK.components.Input;
 
   var API = "/api/plugins/nextcloud-tools";
@@ -205,6 +198,9 @@
     var quickState = useState("all");
     var quick = quickState[0];
     var setQuick = quickState[1];
+    var catState = useState("all"); // active category pill ("all" = every tool)
+    var category = catState[0];
+    var setCategory = catState[1];
     var expandedState = useState(loadExpanded); // map tool name -> bool; survives reload via localStorage
     var expanded = expandedState[0];
     var setExpanded = expandedState[1];
@@ -324,6 +320,7 @@
         var destructiveCount = (gateCounts.destructive || 0) + (gateCounts.mixed || 0);
         var q = query.toLowerCase();
         var visible = tools.filter(function (t2) {
+          if (category !== "all" && categoryOf(t2.name) !== category) return false;
           if (gateFilter !== "all" && t2.gate !== gateFilter) return false;
           if (quick === "disabled" && t2.enabled) return false;
           if (quick === "ungated" && t2.guarded) return false;
@@ -342,7 +339,7 @@
           }
           return true;
         });
-        /* "All" tab groups the visible tools under per-category section headers. */
+        /* "All tools" groups the visible tools under per-category section headers. */
         var groups = [];
         for (i = 0; i < CATEGORIES.length; i++) {
           var id = CATEGORIES[i][0];
@@ -369,7 +366,7 @@
           groups: groups
         };
       },
-      [tools, query, gateFilter, quick]
+      [tools, query, category, gateFilter, quick]
     );
 
     var total = tools.length;
@@ -614,74 +611,80 @@
       );
     }
 
-    /* Tabs is a render-prop on the host: children(active, setActive), no TabsContent. */
-    function renderTabs() {
-      return h(Tabs, { defaultValue: "all" }, function (active, setActive) {
-        var triggers = [
-          h(
-            TabsTrigger,
-            { key: "all", value: "all", active: active === "all", onClick: function () { setActive("all"); } },
-            "All (" + total + ")"
-          )
-        ];
-        CATEGORIES.forEach(function (c) {
-          if (memo.counts[c[0]] > 0) {
-            triggers.push(
-              h(
-                TabsTrigger,
-                { key: c[0], value: c[0], active: active === c[0], onClick: function () { setActive(c[0]); } },
-                c[2] + " (" + memo.counts[c[0]] + ")"
-              )
-            );
-          }
-        });
-        if (memo.counts.other > 0) {
-          triggers.push(
+    /* The list section: list bar over the list (count left, actions top right),
+     * column header, then the rows — grouped under category headers for
+     * "All tools", flat for a single category pill. */
+    function renderList() {
+      var listBody;
+      if (memo.visible.length === 0) {
+        listBody = h(
+          "p",
+          { className: "nc-empty" },
+          total === 0 ? "No tools registered." : "No tools match the current filters."
+        );
+      } else if (category === "all") {
+        listBody = memo.groups.map(function (g) {
+          return h(
+            "div",
+            { key: g.id, className: "nc-group" },
             h(
-              TabsTrigger,
-              { key: "other", value: "other", active: active === "other", onClick: function () { setActive("other"); } },
-              "Other (" + memo.counts.other + ")"
-            )
-          );
-        }
-        var inTab =
-          active === "all"
-            ? memo.visible
-            : memo.visible.filter(function (t) {
-                return categoryOf(t.name) === active;
-              });
-        var listBody;
-        if (inTab.length === 0) {
-          listBody = h(
-            "p",
-            { className: "nc-empty" },
-            total === 0 ? "No tools registered." : "No tools match the current filters."
-          );
-        } else if (active === "all") {
-          listBody = memo.groups.map(function (g) {
-            return h(
               "div",
-              { key: g.id, className: "nc-group" },
+              { className: "nc-group-head" },
+              h("span", { className: "nc-group-label" }, g.label),
+              h("span", { className: "nc-group-count" }, String(g.tools.length))
+            ),
+            h("div", { className: "nc-list" }, g.tools.map(renderRow))
+          );
+        });
+      } else {
+        listBody = h("div", { className: "nc-list" }, memo.visible.map(renderRow));
+      }
+      return h(
+        React.Fragment,
+        null,
+        // list bar over the list: result count left, actions top right
+        total > 0
+          ? h(
+              "div",
+              { className: "nc-listbar" },
+              h(
+                "span",
+                { className: "nc-count", "aria-live": "polite" },
+                "Showing " + memo.visible.length + " of " + total + " tools"
+              ),
               h(
                 "div",
-                { className: "nc-group-head" },
-                h("span", { className: "nc-group-label" }, g.label),
-                h("span", { className: "nc-group-count" }, String(g.tools.length))
-              ),
-              h("div", { className: "nc-list" }, g.tools.map(renderRow))
-            );
-          });
-        } else {
-          listBody = h("div", { className: "nc-list" }, inTab.map(renderRow));
-        }
-        return h(
-          React.Fragment,
-          null,
-          h(TabsList, { className: "nc-tabslist" }, triggers),
-          total > 0 ? renderColumnHeader() : null, // no header for the "No tools registered." state
-          h("div", { className: "nc-listwrap" }, listBody)
-        );
-      });
+                { className: "nc-actions" },
+                h(
+                  Button,
+                  { size: "sm", ghost: true, className: "nc-action", onClick: function () { setAllExpanded(true); }, "aria-label": "Expand all visible tools" },
+                  "Expand all"
+                ),
+                h(
+                  Button,
+                  { size: "sm", ghost: true, className: "nc-action", onClick: function () { setAllExpanded(false); }, "aria-label": "Collapse all visible tools" },
+                  "Collapse all"
+                ),
+                h(
+                  Button,
+                  {
+                    size: "sm",
+                    ghost: true,
+                    className: "nc-action",
+                    disabled: loading,
+                    "aria-label": "Reload tool list",
+                    onClick: function () {
+                      if (!loading) load();
+                    }
+                  },
+                  loading ? "Loading…" : "Reload"
+                )
+              )
+            )
+          : null,
+        total > 0 ? renderColumnHeader() : null, // no header for the "No tools registered." state
+        h("div", { className: "nc-listwrap" }, listBody)
+      );
     }
 
     function renderSkeleton() {
@@ -771,74 +774,80 @@
           total > 0 && gateLine ? h("p", { className: "nc-gateline" }, gateLine) : null,
           h(
             "div",
-            { className: "nc-toolbar" },
-            h(Input, {
-              className: "nc-search",
-              placeholder: "Search tools, categories, gates…",
-              value: query,
-              "aria-label": "Search tools",
-              onChange: function (e) {
-                setQuery(e.target.value);
-              }
-            }),
+            { className: "nc-nav" },
             h(
               "div",
-              { className: "nc-chips", role: "group", "aria-label": "Filter by gate class" },
-              [filterPill("all", "All gates (" + total + ")", "Show all gate classes", gateFilter === "all", setGateFilter)].concat(
-                memo.gates.map(function (g) {
-                  return filterPill(
-                    g,
-                    (GATE_LABEL[g] || g) + " (" + memo.gateCounts[g] + ")",
-                    "Show only " + (GATE_LABEL[g] || g).toLowerCase() + " tools",
-                    gateFilter === g,
-                    setGateFilter
-                  );
-                })
-              )
-            ),
-            h("span", { className: "nc-vsep", "aria-hidden": "true" }),
-            h(
-              "div",
-              { className: "nc-chips", role: "group", "aria-label": "Quick filters" },
-              QUICK_FILTERS.map(function (f) {
-                return filterPill(f[0], f[1] + " (" + quickCount(f[0]) + ")", f[2], quick === f[0], setQuick);
+              { className: "nc-navrow" },
+              h(Input, {
+                className: "nc-search",
+                placeholder: "Search tools, categories, gates…",
+                value: query,
+                "aria-label": "Search tools",
+                onChange: function (e) {
+                  setQuery(e.target.value);
+                }
               })
             ),
             h(
               "div",
-              { className: "nc-actions" },
+              { className: "nc-navrow" },
+              h("span", { className: "nc-filterlabel" }, "Category"),
               h(
-                Button,
-                { size: "sm", ghost: true, className: "nc-action", onClick: function () { setAllExpanded(true); }, "aria-label": "Expand all visible tools" },
-                "Expand all"
-              ),
+                "div",
+                { className: "nc-chips", role: "group", "aria-label": "Filter by category" },
+                [filterPill("all", "All tools (" + total + ")", "Show all tools", category === "all", setCategory)]
+                  .concat(
+                    CATEGORIES.filter(function (c) {
+                      return memo.counts[c[0]] > 0;
+                    }).map(function (c) {
+                      return filterPill(c[0], c[2] + " (" + memo.counts[c[0]] + ")", "Show only " + c[2].toLowerCase() + " tools", category === c[0], setCategory);
+                    })
+                  )
+                  .concat(
+                    memo.counts.other > 0
+                      ? [filterPill("other", "Other (" + memo.counts.other + ")", "Show only other tools", category === "other", setCategory)]
+                      : []
+                  )
+              )
+            ),
+            h(
+              "div",
+              { className: "nc-navrow" },
+              h("span", { className: "nc-filterlabel" }, "Gate"),
               h(
-                Button,
-                { size: "sm", ghost: true, className: "nc-action", onClick: function () { setAllExpanded(false); }, "aria-label": "Collapse all visible tools" },
-                "Collapse all"
-              ),
+                "div",
+                { className: "nc-chips", role: "group", "aria-label": "Filter by gate class" },
+                [filterPill("all", "All gates (" + total + ")", "Show all gate classes", gateFilter === "all", setGateFilter)].concat(
+                  memo.gates.map(function (g) {
+                    return filterPill(
+                      g,
+                      (GATE_LABEL[g] || g) + " (" + memo.gateCounts[g] + ")",
+                      "Show only " + (GATE_LABEL[g] || g).toLowerCase() + " tools",
+                      gateFilter === g,
+                      setGateFilter
+                    );
+                  })
+                )
+              )
+            ),
+            h(
+              "div",
+              { className: "nc-navrow" },
+              h("span", { className: "nc-filterlabel" }, "State"),
               h(
-                Button,
-                {
-                  size: "sm",
-                  ghost: true,
-                  className: "nc-action",
-                  disabled: loading,
-                  "aria-label": "Reload tool list",
-                  onClick: function () {
-                    if (!loading) load();
-                  }
-                },
-                loading ? "Loading…" : "Reload"
+                "div",
+                { className: "nc-chips", role: "group", "aria-label": "Quick filters" },
+                QUICK_FILTERS.map(function (f) {
+                  return filterPill(f[0], f[1] + " (" + quickCount(f[0]) + ")", f[2], quick === f[0], setQuick);
+                })
               )
             )
           ),
-          h(Separator, null),
           loading && total === 0
             ? renderSkeleton()
             : total === 0 && error
               ? renderErrorPanel()
-              : renderTabs()
+              : renderList()
         )
       )
     );
