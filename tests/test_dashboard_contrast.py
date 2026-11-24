@@ -271,11 +271,13 @@ TEXT_CASES: list[tuple[str, list[list[str]]]] = [
     ("stat value (base)", [["nc-stat"], ["nc-stat-value"]]),
     ("stat value ok-modifier", [["nc-stat", "nc-stat-ok"], ["nc-stat-value"]]),
     ("stat value warn-modifier", [["nc-stat", "nc-stat-warn"], ["nc-stat-value"]]),
+    ("stat status glyph", [["nc-stat", "nc-stat-warn"], ["nc-stat-value"], ["nc-stat-glyph"]]),
     ("stat label", [["nc-stat"], ["nc-stat-label"]]),
     ("gate badge base", [["nc-list"], ["nc-row"], ["nc-gatebadge"]]),
     ("gate badge read/write tone", [["nc-list"], ["nc-row"], ["nc-gatebadge", "nc-gate-read"]]),
     ("gate badge destructive tone", [["nc-list"], ["nc-row"], ["nc-gatebadge", "nc-gate-destructive"]]),
     ("gate badge mixed tone", [["nc-list"], ["nc-row"], ["nc-gatebadge", "nc-gate-mixed"]]),
+    ("param required badge", [["nc-param"], ["nc-req"]]),
     ("param name", [["nc-param"], ["nc-param-name"]]),
     ("param type pill", [["nc-param"], ["nc-param-type"]]),
     ("param default", [["nc-param"], ["nc-param-default"]]),
@@ -289,6 +291,7 @@ TEXT_CASES: list[tuple[str, list[list[str]]]] = [
     ("warning banner", [["nc-banner"]]),
     ("inline error", [["nc-inline-error"]]),
     ("confirm text", [["nc-list"], ["nc-confirm"], ["nc-confirm-text"]]),
+    ("confirm danger button", [["nc-list"], ["nc-confirm"], ["nc-btn-danger"]]),
     ("detail description", [["nc-list"], ["nc-detail"], ["nc-detail-desc"]]),
     ("signature", [["nc-list"], ["nc-detail"], ["nc-signature"]]),
     ("help text", [["nc-help"], ["nc-help-text"]]),
@@ -397,18 +400,27 @@ def test_status_signal_non_text_contrast(name: str, chain: list[list[str]]) -> N
     assert ratio >= AA_NON_TEXT, f"{name}: {ratio:.2f}:1 ({fg} on {bg}) < {AA_NON_TEXT}:1"
 
 
-def test_gate_destructive_tint_is_pinned() -> None:
-    """The destructive/mixed badge override must exist and stay at the 25% tint.
+def test_gate_badges_share_one_opaque_pill() -> None:
+    """Every gate tone — destructive/mixed included — renders the same opaque
+    pill: foreground text on muted with the border token as the rim.
 
-    Without the override the host's solid-destructive badge shows through
-    (3.55:1 under nord); this pins the color-mix pill that fixes it.
+    A destructive tint or border on card fails the 3:1 non-text rule under nord
+    (border 2.46:1), and destructive text fails AA, so the destructive signal is
+    the leading "!" glyph rendered by dist/index.js — never color-only.
     """
-    chain = [frozenset({"nc-list"}), frozenset({"nc-row"}), frozenset({"nc-gatebadge", "nc-gate-destructive"})]
-    props = cascade(RULES, chain)
-    assert "background" in props and "color-mix" in props["background"]
-    bg = resolve_color(props["background"], NORD, CARD)
-    expected = srgb_mix(NORD["--color-destructive"], NORD["--color-card"], 25).lower()
-    assert bg == expected, f"destructive badge bg drifted: {bg} != {expected}"
+    base = cascade(RULES, [frozenset({"nc-list"}), frozenset({"nc-row"}), frozenset({"nc-gatebadge"})])
+    for tone in ("nc-gate-read", "nc-gate-write", "nc-gate-destructive", "nc-gate-mixed"):
+        chain = [frozenset({"nc-list"}), frozenset({"nc-row"}), frozenset({"nc-gatebadge", tone})]
+        props = cascade(RULES, chain)
+        for prop in ("color", "background", "border"):
+            assert props.get(prop) == base.get(prop), (
+                f"{tone} {prop} drifted from the base pill: {props.get(prop)!r} != {base.get(prop)!r}"
+            )
+        for prop in ("background", "border"):
+            assert "destructive" not in (props.get(prop) or ""), f"{tone} {prop} tints destructive"
+    fg = resolve_color(base["color"], NORD, CARD)
+    bg = resolve_color(base["background"], NORD, CARD)
+    assert contrast_ratio(fg, bg) >= AA_TEXT, "gate badge pill must stay AA"
 
 
 def test_stat_value_never_carries_status_color() -> None:
@@ -423,6 +435,26 @@ def test_stat_value_never_carries_status_color() -> None:
         assert color == NORD["--color-foreground"].lower(), f"{mod} stat value color: {color}"
 
 
+def test_foreground_chains_fall_back_to_midground() -> None:
+    """Text chains must fall back to --midground, never --foreground.
+
+    User themes derive --foreground from the palette foreground layer, which
+    themes like nord set to alpha 0 — so var(--color-foreground, var(--foreground))
+    resolves to invisible text on hosts that never define --color-foreground
+    (the sakura breakage). With both foreground vars absent (the host gap), a
+    text chain must still resolve to the visible --midground.
+    """
+    css = re.sub(r"/\*.*?\*/", "", CSS_PATH.read_text(encoding="utf-8"), flags=re.S)
+    assert "var(--foreground)" not in css, "a var() chain still falls back to --foreground"
+    assert "var(--color-foreground, var(--midground))" in css
+    tokens = {k: v for k, v in NORD.items() if k not in ("--color-foreground", "--foreground")}
+    chain = [frozenset({"nc-list"}), frozenset({"nc-row"}), frozenset({"nc-name"})]
+    color = inherited_prop(RULES, chain, "color")
+    assert color, "no color resolvable on .nc-name"
+    fg = resolve_color(color, tokens, CARD)
+    assert fg == NORD["--midground"].lower(), f"foreground fallback resolved to {fg}, expected --midground"
+
+
 def test_font_size_floor() -> None:
     """No text in the tab may drop below 0.75 rem (the host's readable-text minimum)."""
     css = CSS_PATH.read_text(encoding="utf-8")
@@ -434,6 +466,7 @@ def test_font_size_floor() -> None:
         [["nc-saving"]],
         [["nc-param-type"]],
         [["nc-param-default"]],
+        [["nc-param"], ["nc-req"]],
         [["nc-row"], ["nc-gatebadge"]],
         [["nc-nav"], ["nc-navrow"], ["nc-search"]],
         [["nc-nav"], ["nc-navrow"], ["nc-filterlabel"]],

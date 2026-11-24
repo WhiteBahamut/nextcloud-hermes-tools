@@ -2,7 +2,7 @@
   "name": "nextcloud-tools",
   "label": "Nextcloud",
   "icon": "Database",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "Overview and settings for all nc_* tools: per-tool enable/disable, approval-gate, search, filters, and full parameter docs.",
   "tab": {
     "path": "/nextcloud-tools",

@@ -12,7 +12,9 @@
  *  - hooks: useState/useEffect/useMemo/useToast; utils.cn; SDK.fetchJSON (auth
  *    injecting, throws on !ok, parses JSON) with a native-fetch fallback here.
  *  - theme CSS vars are the --color-* family (+ --radius, --theme-font-mono);
- *    style.css adds unprefixed shadcn-style fallbacks so other hosts still theme.
+ *    style.css adds unprefixed fallbacks so other hosts still theme, and text
+ *    chains fall back to --midground (NOT --foreground, which user themes derive
+ *    from the palette foreground layer — alpha 0 = invisible on e.g. nord).
  *
  * Wire contract with dashboard/plugin_api.py (never rename one side only):
  *  GET /api/plugins/nextcloud-tools/tools
@@ -508,17 +510,20 @@
           Button,
           {
             size: "sm",
-            /* Not a solid destructive button: host destructive buttons render
-             * destructive-foreground on destructive, which under dark themes is
-             * AA-large only (nord: 3.55:1). The strip itself carries the alert
-             * (role=alert + destructive tint + border); the primary button is the
-             * guaranteed-contrast main action. */
+            /* Outlined + plugin class, not the host's solid destructive button:
+             * the host hardcodes .bg-destructive (fill + white text at 3.8:1,
+             * ignores colorOverrides.destructive) while .nc-btn-danger keeps the
+             * theme tokens. Destructive text/border on this strip fails AA under
+             * dark themes, so the label leads with "!" and the strip itself
+             * carries role=alert + the destructive tint + border. */
+            outlined: true,
+            className: "nc-btn-danger",
             onClick: function () {
               setConfirmUngate(null);
               saveToggle(t, "/guardrails", { enabled: false }, "Ungated " + t.name + " (immediate)");
             }
           },
-          "Ungate without approval"
+          "! Ungate without approval"
         ),
         h(
           Button,
@@ -571,7 +576,9 @@
                     { className: "nc-param-head" },
                     h("code", { className: "nc-param-name" }, p),
                     h("code", { className: "nc-param-type" }, paramType(spec)),
-                    isReq ? h(Badge, { tone: "default", className: "nc-req" }, "required") : null,
+                    /* tone outline + the .nc-req pill: the plugin rule overrides
+                     * the host tone so the badge stays AA on dark themes */
+                    isReq ? h(Badge, { tone: "outline", className: "nc-req" }, "required") : null,
                     Object.prototype.hasOwnProperty.call(spec, "default")
                       ? h("code", { className: "nc-param-default" }, "default: " + JSON.stringify(spec.default))
                       : null
@@ -587,6 +594,7 @@
       var isOpen = !!expanded[t.name];
       var saving = busyName === t.name;
       var confirming = confirmUngate === t.name;
+      var gate = t.gate || "mixed";
       return h(
         React.Fragment,
         { key: t.name },
@@ -616,7 +624,13 @@
             h("span", { className: "nc-name", title: t.name }, t.name),
             h("span", { className: "nc-desc", title: t.description || "" }, t.description || "")
           ),
-          h(Badge, { tone: GATE_TONE[t.gate] || "outline", className: "nc-gatebadge nc-gate-" + (t.gate || "mixed") }, t.gate || "mixed"),
+          h(
+            Badge,
+            { tone: GATE_TONE[t.gate] || "outline", className: "nc-gatebadge nc-gate-" + gate },
+            /* destructive/mixed lead with "!" — the pill colors stay uniform
+             * (AA-safe on every theme), the signal is never color-only */
+            (gate === "destructive" || gate === "mixed" ? "! " : "") + gate
+          ),
           h(
             "div",
             { className: "nc-cell-enabled" },
@@ -742,10 +756,19 @@
     }
 
     function renderStat(label, value, mod) {
+      /* ok/warn is carried by the 3px border AND a foreground glyph next to the
+       * number — on light themes the colored border alone is invisible (success
+       * 1.39:1 under nous-blue), so the signal is never color-only. */
+      var glyph = mod === "ok" ? "✓" : mod === "warn" ? "⚠" : "";
       return h(
         "div",
         { className: cn("nc-stat", mod && "nc-stat-" + mod) },
-        h("span", { className: "nc-stat-value" }, String(value)),
+        h(
+          "span",
+          { className: "nc-stat-value" },
+          glyph ? h("span", { className: "nc-stat-glyph", "aria-hidden": "true" }, glyph) : null,
+          String(value)
+        ),
         h("span", { className: "nc-stat-label" }, label)
       );
     }

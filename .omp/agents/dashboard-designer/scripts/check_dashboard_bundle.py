@@ -294,9 +294,9 @@ def check_sdk_surface() -> None:
 
 # String literals that look like nc-* tokens but are NOT css classes.
 NON_CLASS_STRINGS = {"nc-tools-expanded-v1"}  # localStorage key for expanded rows
-# Classes intentionally without a style.css rule (block container / pill fully
-# provided by the host Badge). Re-review when the bundle changes.
-LAYOUT_ONLY_CLASSES = {"nc-group", "nc-req"}
+# Classes intentionally without a style.css rule (block container only — the
+# "required" pill .nc-req has its own rule). Re-review when the bundle changes.
+LAYOUT_ONLY_CLASSES = {"nc-group"}
 
 
 def check_classes() -> None:

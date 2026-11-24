@@ -1,8 +1,11 @@
 /* nextcloud-tools dashboard tab styles.
  *
  * Every color comes from the host theme tokens. The verified Hermes token family
- * is --color-* (+ --radius, --theme-font-mono); each var() also carries the
- * unprefixed shadcn-style name as a fallback so other hosts still theme the tab.
+ * is --color-* (+ --radius, --theme-font-mono); each var() also carries an
+ * unprefixed fallback so other hosts still theme the tab. Text chains fall back
+ * to --midground, NOT --foreground: user themes derive --foreground from the
+ * palette foreground layer, which themes like nord set to alpha 0 (invisible) —
+ * --midground is always the visible text color.
  * No hex/rgb/hsl literals anywhere — the plugin ships no color theme of its own.
  */
 
@@ -58,18 +61,25 @@
   font-size: 1.25rem;
   font-weight: 600;
   line-height: 1.2;
-  color: var(--color-foreground, var(--foreground));
+  color: var(--color-foreground, var(--midground));
 }
 
 /* Status is a non-text signal (colored left border), never the number itself:
  * success/warning on muted drop below AA (4.23:1 / 5.52:1) at stat size, while
- * foreground on muted is 6.39:1 under the nord tokens. */
+ * foreground on muted is 6.39:1 under the nord tokens. The border alone is also
+ * invisible on some light themes (success 1.39:1 under nous-blue), so index.js
+ * renders a foreground glyph (✓/⚠) next to the number — never color-only. */
 .nc-stat-ok {
   border-left: 3px solid var(--color-success, var(--success));
 }
 
 .nc-stat-warn {
   border-left: 3px solid var(--color-warning, var(--warning));
+}
+
+/* status glyph inside .nc-stat-value — see the note above */
+.nc-stat-glyph {
+  margin-right: 0.25rem;
 }
 
 .nc-stat-label {
@@ -99,10 +109,12 @@
   border-radius: var(--radius, var(--radius-md, 0.5rem));
   background: var(--color-muted, var(--muted)); /* fallback when color-mix is unsupported */
   background: color-mix(in srgb, var(--color-destructive, var(--destructive)) 8%, transparent);
-  color: var(--color-foreground, var(--foreground));
+  color: var(--color-foreground, var(--midground));
 }
 
-/* warning banner when destructive/mixed tools are ungated */
+/* warning banner when destructive/mixed tools are ungated — the text stays
+ * --color-foreground forever, NEVER --color-warning (warning-colored text fails
+ * AA on several themes); the warning token is only the border + the 12% tint */
 .nc-banner {
   padding: 0.5rem 0.75rem;
   font-size: 0.8125rem;
@@ -110,7 +122,7 @@
   border-radius: var(--radius, var(--radius-md, 0.5rem));
   background: var(--color-muted, var(--muted)); /* fallback when color-mix is unsupported */
   background: color-mix(in srgb, var(--color-warning, var(--warning)) 12%, transparent);
-  color: var(--color-foreground, var(--foreground));
+  color: var(--color-foreground, var(--midground));
 }
 
 /* collapsible explainer (replaces the old wall of text) */
@@ -122,7 +134,7 @@
 .nc-help summary {
   cursor: pointer;
   font-weight: 600;
-  color: var(--color-foreground, var(--foreground));
+  color: var(--color-foreground, var(--midground));
   width: fit-content;
 }
 
@@ -185,7 +197,7 @@
   padding: 0 0.75rem;
   border: 1px solid var(--color-border, var(--border));
   background: var(--color-background, var(--background));
-  color: var(--color-foreground, var(--foreground));
+  color: var(--color-foreground, var(--midground));
 }
 
 /* each filter row starts with its micro label */
@@ -207,7 +219,7 @@
   padding: 0 0.625rem;
   border: 1px solid transparent;
   background: transparent;
-  color: var(--color-foreground, var(--foreground));
+  color: var(--color-foreground, var(--midground));
   cursor: pointer;
 }
 
@@ -219,7 +231,7 @@
 .nc-nav .nc-chip.nc-chip-on {
   background: var(--color-muted, var(--muted));
   border-color: var(--color-border, var(--border));
-  color: var(--color-foreground, var(--foreground));
+  color: var(--color-foreground, var(--midground));
 }
 
 /* list bar over the list: result count left, actions top right */
@@ -241,7 +253,7 @@
   padding: 0 0.625rem;
   border: 1px solid transparent;
   background: transparent;
-  color: var(--color-foreground, var(--foreground));
+  color: var(--color-foreground, var(--midground));
   cursor: pointer;
 }
 
@@ -344,7 +356,8 @@
 .nc-chip:focus-visible,
 .nc-action:focus-visible,
 .nc-expand:focus-visible,
-.nc-copy:focus-visible {
+.nc-copy:focus-visible,
+.nc-btn-danger:focus-visible {
   outline: 2px solid var(--color-ring, var(--ring));
   outline-offset: 2px;
 }
@@ -382,7 +395,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--color-foreground, var(--foreground));
+  color: var(--color-foreground, var(--midground));
 }
 
 .nc-desc {
@@ -398,26 +411,25 @@
   justify-self: start;
 }
 
-/* Host Badge tones fail AA on dark themes at badge size (11.5 px): secondary/
- * outline render muted-foreground on muted (5.26:1, washed out), destructive
- * renders its foreground on solid destructive (3.55:1 under nord). Force an
- * opaque pill instead: foreground text on muted (6.39:1); the destructive/
- * mixed tones get a destructive-tinted bg (fg on 25% destructive over card =
- * 6.04:1).
+/* Host Badge tones fail AA on dark themes at badge size: secondary/outline
+ * render muted-foreground on muted, solid destructive is AA-large only. So the
+ * tab forces ONE opaque pill for every gate tone — foreground text on muted,
+ * border token as the rim. A destructive tint or border on card fails the 3:1
+ * non-text rule on dark themes (nord border 2.46:1), and destructive text fails
+ * AA, so destructive/mixed are flagged by the leading "!" glyph + semibold
+ * instead — never color-only.
  * Two-class selectors so these win over the host's single-class tone rules
  * regardless of stylesheet order. */
 .nc-row .nc-gatebadge {
   font-size: 0.75rem;
-  color: var(--color-foreground, var(--foreground));
+  color: var(--color-foreground, var(--midground));
   background: var(--color-muted, var(--muted));
   border: 1px solid var(--color-border, var(--border));
 }
 
 .nc-row .nc-gatebadge.nc-gate-destructive,
 .nc-row .nc-gatebadge.nc-gate-mixed {
-  background: var(--color-muted, var(--muted)); /* fallback when color-mix is unsupported */
-  background: color-mix(in srgb, var(--color-destructive, var(--destructive)) 25%, var(--color-card, var(--card)));
-  border-color: var(--color-destructive, var(--destructive));
+  font-weight: 600;
 }
 
 .nc-cell-enabled {
@@ -465,7 +477,20 @@
 
 .nc-confirm-text {
   flex: 1 1 16rem;
-  color: var(--color-foreground, var(--foreground));
+  color: var(--color-foreground, var(--midground));
+}
+
+/* Danger action in the ungate confirm: an outlined host button + this plugin
+ * class, so the theme tokens apply — the host's solid destructive button
+ * hardcodes its fill (#fb2c36) and ignores colorOverrides.destructive. Text
+ * stays foreground and the rim stays the border token (destructive text/border
+ * on this strip fails AA / the 3:1 rule under dark themes); the label's leading
+ * "!" carries the danger signal. Two-class selector beats the host's
+ * single-class button tones regardless of stylesheet order. */
+.nc-confirm .nc-btn-danger {
+  color: var(--color-foreground, var(--midground));
+  border-color: var(--color-border, var(--border));
+  font-weight: 600;
 }
 
 /* ---------- expanded doc panel ---------- */
@@ -477,7 +502,7 @@
   background: var(--color-muted, var(--muted));
   background: color-mix(in srgb, var(--color-muted, var(--muted)) 45%, transparent);
   font-size: 0.8125rem;
-  color: var(--color-foreground, var(--color-card-foreground, var(--foreground)));
+  color: var(--color-foreground, var(--color-card-foreground, var(--midground)));
 }
 
 .nc-detail-desc {
@@ -506,7 +531,7 @@
   border-radius: var(--radius, var(--radius-sm, 0.375rem));
   /* explicit color: a host global `code { color }` rule would otherwise beat
    * inheritance and render dark text on the dark card background */
-  color: var(--color-foreground, var(--color-card-foreground, var(--foreground)));
+  color: var(--color-foreground, var(--color-card-foreground, var(--midground)));
 }
 
 .nc-copy {
@@ -533,6 +558,16 @@
   border-radius: var(--radius, var(--radius-sm, 0.375rem));
 }
 
+/* the "required" badge gets the same opaque pill as the gate badge — host
+ * Badge default renders primary-on-primary and secondary/outline fail AA on
+ * dark themes at badge size; two-class selector beats the host tone classes */
+.nc-param .nc-req {
+  font-size: 0.75rem;
+  color: var(--color-foreground, var(--midground));
+  background: var(--color-muted, var(--muted));
+  border: 1px solid var(--color-border, var(--border));
+}
+
 .nc-param-head {
   display: flex;
   flex-wrap: wrap;
@@ -544,7 +579,7 @@
   font-family: var(--theme-font-mono, var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace));
   font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--color-foreground, var(--foreground));
+  color: var(--color-foreground, var(--midground));
   /* clear the host base-layer `code { background }` chip: an unlayered class
    * rule wins `color` over it, but nothing else clears the chip, so under a
    * dark theme the light foreground would sit on the light chip (1:1 nord) */
@@ -566,7 +601,7 @@
 .nc-param-default {
   font-family: var(--theme-font-mono, var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace));
   font-size: 0.75rem;
-  color: var(--color-foreground, var(--foreground));
+  color: var(--color-foreground, var(--midground));
   overflow-wrap: anywhere;
   /* same host `code { background }` chip as .nc-param-name — see there */
   background: transparent;
@@ -613,7 +648,7 @@
   margin: 0;
   flex: 1 1 16rem;
   font-size: 0.8125rem;
-  color: var(--color-foreground, var(--foreground));
+  color: var(--color-foreground, var(--midground));
 }
 
 .nc-empty {
