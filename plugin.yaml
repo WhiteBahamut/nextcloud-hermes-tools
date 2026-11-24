@@ -1,5 +1,5 @@
 name: nextcloud-tools
-version: 0.34.2
+version: 0.34.3
 description: >-
   Nextcloud toolset for Hermes Agent: 56 tools against one Nextcloud server -
   files (WebDAV), unified/full-text search, shares, Talk, calendar, tasks,
@@ -89,46 +89,57 @@ provides_tools:
   - nc_file_version_restore
 config_schema:
   ca_bundle:
+    label: "CA bundle"
     type: str
     default: ""
     description: Path to a PEM CA bundle for servers with an internal CA (e.g. *.chromaticum.de). Empty = system CAs.
   default_search_providers:
+    label: "Default search providers"
     type: list
     default: ["files", "fulltextsearch", "talk-message", "calendar", "tasks"]
     description: Search providers queried by nc_search when its `providers` argument is empty.
   disabled_tools:
+    label: "Disabled tools"
     type: list
     default: []
     description: nc_* tool names to leave unregistered (per-tool disable); applies on next agent start / plugin reload.
   max_results:
+    label: "Max results per provider"
     type: int
     default: 20
     description: Default per-provider result cap for nc_search.
   request_timeout:
+    label: "Request timeout (seconds)"
     type: float
     default: 30.0
     description: HTTP request timeout in seconds.
   server_timezone:
+    label: "Server timezone"
     type: str
     default: ""
     description: Timezone for tool-generated default times only (nc_cal_list default from/to = now-30d/now+90d in this zone). Empty (default) = server timezone, auto-detected via CalDAV calendar-timezone (UTC fallback). Invalid names fall back to UTC. Times passed in tool arguments are used exactly as given — never converted.
   talk_include_dms:
+    label: "Include 1:1 DMs in Talk rooms"
     type: bool
     default: false
     description: Include 1:1 DM rooms in nc_talk_rooms.
   talk_skip_tokens:
+    label: "Talk room tokens to skip"
     type: list
     default: []
     description: Talk room tokens always excluded from nc_talk_rooms (e.g. the gateway-polled DM).
   hard_block_destructive:
+    label: "Hard-block destructive tools"
     type: bool
     default: false
     description: If true, destructive nc_* operations are hard-blocked by the pre_tool_call hook instead of routed to the approval gate.
   ungated_tools:
+    label: "Ungated tools (skip approval)"
     type: list
     default: []
     description: nc_* tool names exempt from the pre_tool_call approval gate (guard returns None, no approval prompt). hard_block_destructive still hard-blocks destructive tools in this list. Read per call — applies immediately, no restart needed. For the arg-dispatched nc_ocs, a 'nc_ocs:<METHOD>' entry (e.g. 'nc_ocs:GET') exempts only that HTTP method; plain 'nc_ocs' exempts all methods and logs a WARNING at register time.
   log_level:
+    label: "Log level"
     type: str
     default: "INFO"
     description: Level for the plugin's `nextcloud_tools.*` loggers (DEBUG/INFO/WARNING/ERROR/CRITICAL). Records propagate to the Hermes host log files (agent.log/errors.log); the plugin attaches no handlers of its own.

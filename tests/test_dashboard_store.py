@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pytest
@@ -141,3 +142,19 @@ def test_plugin_api_writes_through_canonical_settings_writer():
     src = (Path(__file__).resolve().parent.parent / "dashboard" / "plugin_api.py").read_text(encoding="utf-8")
     assert "save_plugin_settings(" in src
     assert "save_config(" not in src
+
+
+_CONFIG_SCHEMA_ENTRY_RE = re.compile(r"^  (\w+):\n((?:    .+\n)+)", re.M)
+
+
+def test_config_schema_entries_have_label_type_default_description():
+    # The host renders each config_schema key in the Desktop Settings->Plugins form and
+    # `hermes plugins config` as `label or title or key`; every entry MUST carry all four
+    # fields so the form shows a human label, a typed field, a default and help text.
+    text = (Path(__file__).resolve().parent.parent / "plugin.yaml").read_text(encoding="utf-8")
+    block = text.split("config_schema:", 1)[1]  # config_schema is the last manifest section
+    entries = _CONFIG_SCHEMA_ENTRY_RE.findall(block)
+    assert len(entries) == 11  # guard against the sweep silently matching nothing
+    for key, body in entries:
+        for field in ("label:", "type:", "default:", "description:"):
+            assert re.search(rf"^    {re.escape(field)}", body, re.M), (key, field)
