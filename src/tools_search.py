@@ -22,7 +22,9 @@ log = logging.getLogger(__name__)
 
 
 def _query_provider(provider: str, term: str, limit: int) -> list:
-    """One provider's results; a failure becomes a per-provider error entry."""
+    """One provider's results; a failure becomes a per-provider error entry.
+    The limit is also applied client-side so a provider that ignores the
+    ``limit`` query param cannot flood the merged result."""
     try:
         data = client.ocs(
             "GET",
@@ -36,6 +38,8 @@ def _query_provider(provider: str, term: str, limit: int) -> list:
                 out.append({"provider": provider, **entry})
             else:
                 out.append({"provider": provider, "entry": entry})
+        if limit and limit > 0:
+            out = out[:limit]
         return out
     except Exception as exc:
         log.warning("search provider %s failed: %s", provider, client.redact(str(exc)))

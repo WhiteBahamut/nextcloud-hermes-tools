@@ -46,6 +46,15 @@ def test_search_provider_failure_isolated(nc, call):
     assert q["term"] == "a" and q["limit"] == "5"
 
 
+def test_search_provider_result_capped_client_side(nc, call):
+    # provider ignores the limit query param and returns 10 entries
+    nc.handler = lambda req: ocs_ok([{"id": str(i), "name": f"hit{i}"} for i in range(10)])
+    res = call("nc_search", {"term": "x", "providers": ["files"], "limit": 3})
+    assert res["ok"] and res["count"] == 3
+    assert [r["id"] for r in res["results"]] == ["0", "1", "2"]
+    assert nc.requests[0].url.params["limit"] == "3"  # still sent server-side
+
+
 def test_search_defaults_come_from_settings(nc):
     _ctx, call = conftest.make_caller({"default_search_providers": ["files"], "max_results": 7})
 
