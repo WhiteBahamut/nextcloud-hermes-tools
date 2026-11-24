@@ -19,6 +19,7 @@ def register(ctx):
         client,
         compat,
         guardrails,
+        stats,
         tools_cal,
         tools_contacts,
         tools_files,
@@ -64,5 +65,6 @@ def register(ctx):
                 description=schema["description"],
             )
     ctx.register_hook("pre_tool_call", guardrails.guard)
+    ctx.register_hook("post_tool_call", stats.observe)  # usage-stats observer; never raises
     log.info("nextcloud-tools registered %d tools, %d disabled, log_level=%s", registered, len(disabled), logging.getLevelName(log_level))
     compat.check_versions()

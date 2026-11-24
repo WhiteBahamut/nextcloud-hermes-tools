@@ -390,3 +390,57 @@ def test_trash_empty_tolerates_404_on_verification_propfind(nc, call):
     nc.handler = h
     res = call("nc_trash_empty", {})
     assert res["ok"] is True and res["emptied"] is True and res["verified"] is True
+
+
+# --- capabilities / user info (curated nc_ocs wrappers) ------------------------------
+
+
+def test_capabilities_returns_apps_map(nc, call):
+    def h(req):
+        assert req.method == "GET" and req.url.path == "/ocs/v2.php/cloud/capabilities"
+        return ocs_ok({
+            "version": {"major": 35, "string": "35.0.2"},
+            "capabilities": {
+                "spreed": {"version": "21.0.0", "features": ["chat"]},
+                "deck": {"version": "1.15.0"},
+                "files": {"version": "35.0.2"},
+            },
+        })
+
+    nc.handler = h
+    res = call("nc_capabilities", {})
+    assert res["ok"] is True
+    assert res["apps"] == {"spreed": "21.0.0", "deck": "1.15.0", "files": "35.0.2"}
+    assert res["version"]["string"] == "35.0.2"
+    assert "spreed" in res["capabilities"]
+    assert nc.methods() == ["GET"]
+
+
+def test_capabilities_ocs_error_returns_err(nc, call):
+    nc.handler = lambda req: ocs_err(404, "App not found")
+    res = call("nc_capabilities", {})
+    assert res["ok"] is False and "404" in res["error"]
+
+
+def test_user_info_returns_quota(nc, call):
+    def h(req):
+        assert req.method == "GET" and req.url.path == "/ocs/v2.php/cloud/user"
+        return ocs_ok({
+            "id": "bot",
+            "displayname": "Bot",
+            "email": "bot@example.com",
+            "quota": {"free": 1000, "used": 500, "total": 1500, "relative": 33.3},
+            "enabled": True,
+        })
+
+    nc.handler = h
+    res = call("nc_user_info", {})
+    assert res["ok"] is True
+    assert res["id"] == "bot" and res["displayname"] == "Bot"
+    assert res["quota"] == {"free": 1000, "used": 500, "total": 1500, "relative": 33.3}
+
+
+def test_user_info_non_dict_payload_returns_err(nc, call):
+    nc.handler = lambda req: ocs_ok(["not", "a", "dict"])
+    res = call("nc_user_info", {})
+    assert res["ok"] is False

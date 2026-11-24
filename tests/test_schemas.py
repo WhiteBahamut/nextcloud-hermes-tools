@@ -28,4 +28,4 @@ def test_every_tool_description_is_short():
             f"{name} description must be a non-empty string of at most 140 chars"
         )
         checked += 1
-    assert checked == 52  # guard against the sweep silently matching the wrong set
+    assert checked == 54  # guard against the sweep silently matching the wrong set

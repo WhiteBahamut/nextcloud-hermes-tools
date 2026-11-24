@@ -234,3 +234,8 @@ def test_guard_nc_ocs_method_gating(fake_ctx):
     d = guardrails.guard("nc_ocs", {"method": "DELETE", "path": "x"})
     assert d["action"] == "approve" and d["rule_key"] == "nc-destructive"
     assert "DELETE /ocs/v2.php/x (destructive)" in d["message"]
+
+
+def test_guard_new_meta_tools_are_read():
+    assert guardrails.guard("nc_capabilities", {}) is None
+    assert guardrails.guard("nc_user_info", {}) is None

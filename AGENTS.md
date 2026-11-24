@@ -1,8 +1,8 @@
 # AGENTS.md — nextcloud-hermes-tools
 
 You are working in `nextcloud-hermes-tools`, a Hermes Agent **directory plugin** that
-gives the agent 52 `nc_*` tools (files, search, shares, Talk, calendar, tasks, contacts,
-notes, activity, tags, trashbin, comments, generic OCS) against one Nextcloud server.
+gives the agent the `nc_*` toolset (files, search, shares, Talk, calendar, tasks, contacts,
+notes, activity, tags, trashbin, comments, generic OCS, ...) against one Nextcloud server.
 Python 3.10+, MIT.
 
 The repo root **is** the plugin directory: install = `git clone <repo>
@@ -34,9 +34,9 @@ surrounding style by hand. Every module MUST start with
 
 | Path | What |
 |---|---|
-| `plugin.yaml` | Hermes manifest: `provides_tools` (all 52 `nc_*`), `provides_hooks` (`pre_tool_call`), `config_schema` (settings incl. `disabled_tools`) |
+| `plugin.yaml` | Hermes manifest: `provides_tools` (all `nc_*`), `provides_hooks` (`pre_tool_call`, `post_tool_call`), `config_schema` (settings incl. `disabled_tools`) |
 | `__init__.py` | Root loader; exposes `register` / `TOOLSET` from `src/` |
-| `src/__init__.py` | `register(ctx)`: iterates tool modules, skips `disabled_tools`, registers each tool with `check_fn=client.configured` + `requires_env` = the three `NC_*` names (`list(client.ENV_ALIASES.values())`; `TALK_*` stays a runtime fallback via `ENV_ALIASES`); registers `guardrails.guard` as the `pre_tool_call` hook |
+| `src/__init__.py` | `register(ctx)`: iterates tool modules, skips `disabled_tools`, registers each tool with `check_fn=client.configured` + `requires_env` = the three `NC_*` names (`list(client.ENV_ALIASES.values())`; `TALK_*` stays a runtime fallback via `ENV_ALIASES`); registers `guardrails.guard` as the `pre_tool_call` hook and `stats.observe` as the `post_tool_call` usage-stats observer |
 | `src/client.py` | HTTP layer: secret resolution, per-call config, `enc_path`, `redact`, `ok`/`err`, the `@tool` wrapper, cached client + retry, DAV helpers, OCS helper, read-back verification |
 | `src/guardrails.py` | `pre_tool_call` hook: READ_ONLY / WRITES / DESTRUCTIVE frozensets + arg-dispatch for `nc_comments` / `nc_ocs`; never raises, fails toward approve |
 | `src/compat.py` | Install-time Hermes/Nextcloud version check vs tested ranges; INFO within range, WARNING outside |

@@ -49,6 +49,8 @@ All `nc_*` tools live in the `nextcloud` toolset. Every handler returns a JSON s
 | `nc_ocs` | generic OCS v2 escape hatch | Traversal (`..`, leading `/`) rejected before any request |
 | `nc_file_unlock` | files_lock OCS `DELETE /ocs/v2.php/apps/files_lock/lock/<fileId>` | force-unlock as file owner; verified by PROPFIND `nc:lock` read-back; folders rejected |
 | `nc_version` | `GET /status.php` | returns only `version` and `versionstring` from the public flat-JSON status endpoint (no OCS envelope) |
+| `nc_capabilities` | OCS `GET cloud/capabilities` | curated `nc_ocs` wrapper: `apps` = enabled app ids with versions (check deck/forms/collectives/mail first), `capabilities` = full tree |
+| `nc_user_info` | OCS `GET cloud/user` | curated `nc_ocs` wrapper: bot profile (id/displayname/email) + quota {free,used,total,relative} |
 
 ## Install
 

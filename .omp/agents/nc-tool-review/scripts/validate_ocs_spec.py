@@ -238,6 +238,19 @@ class MockServer:
             return []
         if rel == "cloud/capabilities":
             return {"version": {"major": 35, "minor": 0, "micro": 2, "string": "35.0.2", "edition": "", "extendedSupport": False}, "capabilities": {}}
+        if rel == "cloud/user":
+            # ProvisioningApiUserDetails (all 29 required fields of the v35 spec)
+            return {
+                "id": "bot", "displayname": "Bot", "display-name": "Bot", "email": "bot@example.com",
+                "additional_mail": [], "address": "", "backend": "Database",
+                "backendCapabilities": {"setDisplayName": True, "setPassword": False},
+                "biography": "", "fediverse": "", "groups": ["bots"], "headline": "", "language": "en",
+                "firstLoginTimestamp": 0, "lastLoginTimestamp": 0, "lastLogin": 0, "locale": "en",
+                "manager": "", "notify_email": "", "organisation": "", "phone": "",
+                "profile_enabled": "", "pronouns": "",
+                "quota": {"free": 1000, "used": 500, "total": 1500, "relative": 33.3, "quota": 1500},
+                "role": "", "subadmin": [], "timezone": "", "twitter": "", "bluesky": "", "website": "",
+            }
         return []
 
 

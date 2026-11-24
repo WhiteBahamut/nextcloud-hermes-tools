@@ -450,3 +450,11 @@ NC_VERSION = _s(
     "Nextcloud server version via GET /status.php: returns only 'version' (e.g. '35.0.2.2') and 'versionstring' (e.g. '35.0.2').",
     {},
 )
+NC_CAPABILITIES = _s(
+    "Server capabilities (OCS GET cloud/capabilities): `apps` = enabled apps + versions, `capabilities` = full tree.",
+    {},
+)
+NC_USER_INFO = _s(
+    "Bot account profile + storage quota (OCS GET cloud/user): id, displayname, email, quota {free,used,total,relative} bytes.",
+    {},
+)

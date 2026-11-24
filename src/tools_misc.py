@@ -8,6 +8,14 @@
 - Tag assign/unassign verify via PROPFIND read-back.
 - ``nc_file_unlock``: DELETE /ocs/v2.php/apps/files_lock/lock/<fileId> as file owner (OCS-APIRequest header is set client-wide in client.get_client); lock state via a local PROPFIND <nc:lock/> body; folders rejected at resolution.
 - ``nc_version``: plain ``GET /status.php`` (public, flat JSON, no OCS envelope); returns only ``version``/``versionstring``.
+- ``nc_capabilities`` / ``nc_user_info``: curated read-only wrappers over the generic
+  OCS escape hatch — ``GET cloud/capabilities`` (enabled apps + versions) and
+  ``GET cloud/user`` (profile + quota) via ``client.ocs``.
+- ``nc_file_versions`` / ``nc_file_version_restore``: versions DAV — PROPFIND
+  ``/remote.php/dav/versions/<user>/versions/<fileid>/`` lists versions (name =
+  timestamp); restore = MOVE of the version href to
+  ``/remote.php/dav/versions/<user>/restore``, verified by sha256 read-back of the
+  live file against the version bytes.
 """
 
 from __future__ import annotations
@@ -351,6 +359,38 @@ def _version(args):
     return client.ok(version=version, versionstring=versionstring if isinstance(versionstring, str) else "")
 
 
+def _capabilities(args):
+    """GET cloud/capabilities: full tree + a flat {app: version} map for app detection."""
+    data = client.ocs("GET", "cloud/capabilities")
+    caps = data.get("capabilities") if isinstance(data, dict) else None
+    apps = {}
+    if isinstance(caps, dict):
+        for app, cfg in caps.items():
+            version = cfg.get("version") if isinstance(cfg, dict) else None
+            apps[str(app)] = version if isinstance(version, str) else ""
+    version = data.get("version") if isinstance(data, dict) else None
+    return client.ok(
+        version=version if isinstance(version, dict) else {},
+        apps=apps,
+        capabilities=caps if isinstance(caps, dict) else {},
+    )
+
+
+def _user_info(args):
+    """GET cloud/user: own profile + quota."""
+    data = client.ocs("GET", "cloud/user")
+    if not isinstance(data, dict):
+        raise client.NcError(200, "unexpected cloud/user payload (not a dict)")
+    quota_raw = data.get("quota")
+    quota = {k: quota_raw.get(k) for k in ("free", "used", "total", "relative") if isinstance(quota_raw, dict) and k in quota_raw}
+    return client.ok(
+        id=data.get("id"),
+        displayname=data.get("displayname"),
+        email=data.get("email"),
+        quota=quota,
+    )
+
+
 TOOLS = [
     ("nc_activity", schemas.NC_ACTIVITY, client.tool(_activity)),
     ("nc_notifications", schemas.NC_NOTIFICATIONS, client.tool(_notifications)),
@@ -366,4 +406,6 @@ TOOLS = [
     ("nc_ocs", schemas.NC_OCS, client.tool(_ocs)),
     ("nc_file_unlock", schemas.NC_FILE_UNLOCK, client.tool(_file_unlock)),
     ("nc_version", schemas.NC_VERSION, client.tool(_version)),
+    ("nc_capabilities", schemas.NC_CAPABILITIES, client.tool(_capabilities)),
+    ("nc_user_info", schemas.NC_USER_INFO, client.tool(_user_info)),
 ]
