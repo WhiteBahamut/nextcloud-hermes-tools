@@ -21,6 +21,7 @@ import os
 import re
 import threading
 import time
+import xml.etree.ElementTree as ET
 from urllib.parse import quote, unquote
 
 log = logging.getLogger(__name__)
@@ -384,11 +385,31 @@ def request(method, path, *, params=None, data=None, json_body=None, content=Non
 
 
 def resp_message(resp) -> str:
+    """Error text for logs/exceptions: OCS ``meta.message`` first, then the
+    DAV ``s:exception``/``s:message`` pair from sabre-style XML error bodies
+    (matched by local tag name, namespace-prefix agnostic), then truncated raw
+    text. Always capped at 300 chars."""
     try:
         payload = resp.json()
         message = payload.get("ocs", {}).get("meta", {}).get("message")
         if message:
             return str(message)
+    except Exception:
+        pass
+    try:
+        root = ET.fromstring(resp.text or "")
+        exception = ""
+        message = ""
+        for elem in root.iter():
+            local = elem.tag.rsplit("}", 1)[-1] if "}" in elem.tag else elem.tag
+            if local == "exception" and not exception:
+                exception = (elem.text or "").strip()
+            elif local == "message" and not message:
+                message = (elem.text or "").strip()
+        if exception and message:
+            return f"{exception}: {message}"[:300]
+        if exception or message:
+            return (exception or message)[:300]
     except Exception:
         pass
     return (resp.text or "")[:300]

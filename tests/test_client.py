@@ -28,6 +28,31 @@ def test_ocs_non_json_response(nc):
     assert ei.value.status == 502
 
 
+def test_resp_message_parses_dav_xml_error(nc):
+    # sabre-style error body; the s: prefix URI is irrelevant (local-name
+    # matching), so an allowlisted namespace stands in for sabredav.org/ns
+    body = (
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<d:error xmlns:d="DAV:" xmlns:s="https://nextcloud.org/ns">'
+        "<s:exception>Sabre\\DAV\\Exception\\NotFound</s:exception>"
+        "<s:message>File with name /x not found</s:message>"
+        "</d:error>"
+    )
+    resp = httpx.Response(404, text=body)
+    assert client.resp_message(resp) == "Sabre\\DAV\\Exception\\NotFound: File with name /x not found"
+    assert len(client.resp_message(resp)) <= 300
+
+
+def test_resp_message_dav_xml_message_only_and_fallbacks(nc):
+    body = '<d:error xmlns:d="DAV:" xmlns:s="https://nextcloud.org/ns"><s:message>nope</s:message></d:error>'
+    assert client.resp_message(httpx.Response(500, text=body)) == "nope"
+    # OCS JSON meta.message still wins when present
+    ocs = httpx.Response(400, json={"ocs": {"meta": {"message": "ocs msg"}}})
+    assert client.resp_message(ocs) == "ocs msg"
+    # non-XML body falls back to truncated raw text, never raw XML
+    assert client.resp_message(httpx.Response(502, text="<html>" + "x" * 400)) == ("<html>" + "x" * 400)[:300]
+
+
 def test_propfind_accepts_200_and_207_and_sends_depth(nc):
     nc.handler = lambda req: httpx.Response(207, text="<d:multistatus xmlns:d='DAV:'/>")
     client.propfind("/remote.php/dav/files/bot/", depth=1)
