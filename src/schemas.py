@@ -105,6 +105,8 @@ NC_FILE_SEARCH = _s(
         "term": {"type": "string", "description": "Filename substring to match (case-insensitive)."},
         "path": {**PATH, "default": "/"},
         "limit": {"type": "integer", "default": 100, "description": "Max entries returned."},
+        "recursive": {"type": "boolean", "default": True, "description": "Walk the whole subtree via iterative depth-1 PROPFINDs (default true); false = only the folder itself. Never sends Depth: infinity."},
+        "max_folders": {"type": "integer", "default": 200, "description": "Max folders scanned by the recursive walk; clamped to 1-1000."},
     },
     ["term"],
 )

@@ -68,17 +68,60 @@ def test_search_defaults_come_from_settings(nc):
     assert res["ok"] and res["results"] == []
 
 
-def test_file_search_local_filter_with_limit(nc, call):
+def _tree_handler(req):
+    """Two-level tree: / contains folder a/ + report-2026.pdf + other.bin;
+    /a/ contains report-nested.txt."""
     from conftest import multistatus
 
-    nc.handler = lambda req: multistatus([
-        (f"/remote.php/dav/files/bot/", '<d:resourcetype><d:collection/></d:resourcetype>'),
-        (f"/remote.php/dav/files/bot/report-2026.pdf", '<d:resourcetype/><d:getcontentlength>10</d:getcontentlength>'),
-        (f"/remote.php/dav/files/bot/Report-final.txt", '<d:resourcetype/><d:getcontentlength>3</d:getcontentlength>'),
-        (f"/remote.php/dav/files/bot/other.bin", '<d:resourcetype/><d:getcontentlength>1</d:getcontentlength>'),
+    if req.url.path.endswith("/a/"):
+        return multistatus([
+            ("/remote.php/dav/files/bot/a/", '<d:resourcetype><d:collection/></d:resourcetype>'),
+            ("/remote.php/dav/files/bot/a/report-nested.txt", '<d:resourcetype/><d:getcontentlength>3</d:getcontentlength>'),
+        ])
+    return multistatus([
+        ("/remote.php/dav/files/bot/", '<d:resourcetype><d:collection/></d:resourcetype>'),
+        ("/remote.php/dav/files/bot/a/", '<d:resourcetype><d:collection/></d:resourcetype>'),
+        ("/remote.php/dav/files/bot/report-2026.pdf", '<d:resourcetype/><d:getcontentlength>10</d:getcontentlength>'),
+        ("/remote.php/dav/files/bot/Report-final.txt", '<d:resourcetype/><d:getcontentlength>3</d:getcontentlength>'),
+        ("/remote.php/dav/files/bot/other.bin", '<d:resourcetype/><d:getcontentlength>1</d:getcontentlength>'),
     ])
-    res = call("nc_file_search", {"term": "REPORT", "path": "/", "limit": 100})
+
+
+def test_file_search_local_filter_with_limit(nc, call):
+    nc.handler = _tree_handler
+    res = call("nc_file_search", {"term": "REPORT", "path": "/", "limit": 100, "recursive": False})
     assert res["ok"]
-    assert nc.requests[0].headers["Depth"] == "infinity"
+    assert len(nc.requests) == 1 and nc.requests[0].headers["Depth"] == "1"
     names = {r["name"] for r in res["results"]}
     assert names == {"report-2026.pdf", "Report-final.txt"}  # case-insensitive
+    assert res["folders_scanned"] == 1
+
+
+def test_file_search_recursive_walk_never_sends_depth_infinity(nc, call):
+    nc.handler = _tree_handler
+    res = call("nc_file_search", {"term": "report", "path": "/", "limit": 100})
+    assert res["ok"]
+    names = {r["name"] for r in res["results"]}
+    assert names == {"report-2026.pdf", "Report-final.txt", "report-nested.txt"}
+    assert res["folders_scanned"] == 2  # / then /a/
+    assert len(nc.requests) == 2
+    assert all(r.headers["Depth"] == "1" for r in nc.requests)  # never infinity
+
+
+def test_file_search_max_folders_caps_the_walk(nc, call):
+    nc.handler = _tree_handler
+    res = call("nc_file_search", {"term": "report", "path": "/", "limit": 100, "max_folders": 1})
+    assert res["ok"]
+    assert res["folders_scanned"] == 1
+    assert len(nc.requests) == 1  # /a/ never scanned
+    assert {r["name"] for r in res["results"]} == {"report-2026.pdf", "Report-final.txt"}
+
+
+def test_file_search_max_folders_clamped(nc, call):
+    nc.handler = _tree_handler
+    res = call("nc_file_search", {"term": "report", "path": "/", "max_folders": 99999})
+    assert res["ok"] and res["folders_scanned"] == 2  # clamped to 1000, tree has 2
+    # explicit 0 is not conflated with omitted: it clamps to 1
+    n0 = len(nc.requests)
+    res = call("nc_file_search", {"term": "report", "path": "/", "max_folders": 0})
+    assert res["ok"] and res["folders_scanned"] == 1 and len(nc.requests) == n0 + 1
