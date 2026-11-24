@@ -7,6 +7,8 @@ Wire contract with ``dist/index.js`` (never rename one side only):
   GET /tools            -> {"tools": [{"name", "description", "parameters", "gate", "enabled", "guarded"}]}
   PUT /tools/{name}     -> {"ok": true, "disabled_tools": [...]}  (body {"enabled": bool})
   PUT /tools/{name}/guardrails -> {"ok": true, "ungated_tools": [...]}  (body {"enabled": bool})
+  Errors: 400 unknown tool / schema mismatch, 403 managed install or
+  administrator-managed key (host-only — the mock never returns these).
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
+PLUGIN_ID = "nextcloud-tools"
 
 # Load the plugin package the same way the repo root expects, so the relative
 # import in dashboard_store (from .guardrails import ...) resolves when this
@@ -37,10 +40,14 @@ if "nextcloud_tools" not in sys.modules:
 
 from nextcloud_tools import dashboard_store  # noqa: E402
 
-# Same profile-scoped read/write seam as hermes_cli/web_routers/tools.py:
-# _profile_scope for reads, config_write_scope (= _profile_scope +
-# _CONFIG_MUTATION_LOCK) for read-modify-write.
-from hermes_cli.config import load_config, save_config  # noqa: E402
+# Same profile-scoped seam as hermes_cli/web_routers/tools.py: _profile_scope
+# for reads, config_write_scope (= _profile_scope + _CONFIG_MUTATION_LOCK) for
+# writes. Writes go through hermes_cli.plugins_settings.save_plugin_settings —
+# the canonical plugin-settings writer (the same one ctx.set_config uses) — so
+# config_schema validation applies and managed-install / administrator-managed-key
+# refusals surface as PermissionError -> 403. The whole config dict is never saved.
+from hermes_cli.config import load_config  # noqa: E402
+from hermes_cli.plugins_settings import save_plugin_settings  # noqa: E402
 from hermes_cli.web_routers._common import _profile_scope, config_write_scope  # noqa: E402
 
 router = APIRouter()
@@ -84,9 +91,11 @@ async def toggle_tool(name: str, body: ToolToggle, profile: Optional[str] = None
             config = load_config()
             try:
                 disabled = dashboard_store.set_tool_enabled(config, name, body.enabled)
-            except ValueError as exc:
+                save_plugin_settings(PLUGIN_ID, PLUGIN_ROOT, {"disabled_tools": disabled})
+            except ValueError as exc:  # unknown tool name or config_schema mismatch
                 raise HTTPException(status_code=400, detail=str(exc))
-            save_config(config)
+            except PermissionError as exc:  # managed install / administrator-managed key
+                raise HTTPException(status_code=403, detail=str(exc))
             return {"ok": True, "disabled_tools": disabled}
 
     return await asyncio.to_thread(_run)
@@ -99,9 +108,11 @@ async def toggle_guardrails(name: str, body: GuardrailToggle, profile: Optional[
             config = load_config()
             try:
                 ungated = dashboard_store.set_tool_guarded(config, name, body.enabled)
-            except ValueError as exc:
+                save_plugin_settings(PLUGIN_ID, PLUGIN_ROOT, {"ungated_tools": ungated})
+            except ValueError as exc:  # unknown tool name or config_schema mismatch
                 raise HTTPException(status_code=400, detail=str(exc))
-            save_config(config)
+            except PermissionError as exc:  # managed install / administrator-managed key
+                raise HTTPException(status_code=403, detail=str(exc))
             return {"ok": True, "ungated_tools": ungated}
 
     return await asyncio.to_thread(_run)

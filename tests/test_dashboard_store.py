@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from nextcloud_tools import dashboard_store, schemas
@@ -129,3 +131,13 @@ def test_tool_doc_covers_every_manifest_tool():
         assert isinstance(params, dict) and isinstance(params.get("properties"), dict), name
         checked += 1
     assert checked == 56  # guard against the sweep silently matching nothing
+
+
+def test_plugin_api_writes_through_canonical_settings_writer():
+    # plugin_api.py is host-only (fastapi / hermes_cli) and MUST NOT be imported here;
+    # guard the write path statically instead: toggle writes MUST go through
+    # hermes_cli.plugins_settings.save_plugin_settings (the ctx.set_config writer,
+    # with managed-install / managed-key refusals), never a whole-config save_config.
+    src = (Path(__file__).resolve().parent.parent / "dashboard" / "plugin_api.py").read_text(encoding="utf-8")
+    assert "save_plugin_settings(" in src
+    assert "save_config(" not in src
