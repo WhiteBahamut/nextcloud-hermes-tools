@@ -28,8 +28,7 @@ web/src/themes/context.tsx, verified against the pinned host source):
 
 Neutral tokens a theme leaves unpinned are derived from the palette triplet with
 color-mix() approximations (marked in the emitted CSS) — the host derives them in
-its own DS cascade; themes that care (like nord.yaml, which pins every supported
-key) are unaffected.
+its own DS cascade; themes that pin every supported key are unaffected.
 """
 
 from __future__ import annotations
@@ -284,7 +283,7 @@ def _derived_neutrals(pal: dict) -> dict[str, str]:
 
     Only neutrals are derived; status colors (destructive/success/warning) have no
     sane derivation from the triplet, so they are left to the page's own fallbacks
-    (mock/index.html) — themes that care pin them, like nord.yaml does.
+    (mock/index.html) — themes that care pin them.
     """
     bg = _layer_css(pal.get("background", "#000000"))
     mid = _layer_css(pal.get("midground", "#ffffff"))
@@ -314,8 +313,8 @@ def compile_theme_css(theme: dict) -> str:
     # the layer vars carry alpha, and the shadcn base tokens are DERIVED from the
     # layers — notably --color-foreground resolves through the foreground layer.
     # That is exactly the live-host behavior that made nord's alpha-0 foreground
-    # layer blank all var(--color-foreground, …) text; themes compensate in
-    # customCSS with !important pins (see mock/nord.yaml).
+    # layer blank all var(--color-foreground, …) text; dashboard themes compensate
+    # in customCSS with !important pins.
     root.append(f"--background-base: {bg_hex}; --midground-base: {mid_hex};")
     root.append(f"--background: {bg}; --midground: {mid}; --foreground: {fg};")
     root.append("--color-background: var(--background);")

@@ -1,117 +1,126 @@
-# Hermes dashboard theme — Nord (https://www.nordtheme.com)
-# Drop in <hermes-home>/dashboard-themes/nord.yaml, then pick "Nord" in the
-# dashboard Appearance page (or PUT /api/dashboard/theme {"name": "nord"}).
+# Hermes skin — Nord (https://www.nordtheme.com)
+# Frost blues on polar night, aurora accents. Themes CLI, TUI, and desktop GUI.
 
 name: nord
-label: Nord
-description: Frost and aurora on polar night — official Nord palette for the whole dashboard
+description: Nord — frost and aurora on polar night (#2E3440)
 
-palette:
-  # Base surfaces — polar night ladder (nord0 → nord3).
-  background: { hex: "#2E3440", alpha: 1 }
-  midground: { hex: "#D8DEE9", alpha: 1 }        # text + primary fill — snow storm
-  foreground: { hex: "#FFFFFF", alpha: 0 }        # invisible overlay (default)
-  warmGlow: "rgba(136, 192, 208, 0.35)"           # frost-cyan glow on the backdrop
-  noiseOpacity: 0.7
+colors:
+  # Base surface — polar night.
+  background: "#2E3440"
 
-typography:
-  fontSans: '"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
-  fontMono: '"JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace'
-  fontUrl: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
-  baseSize: "15px"
-  lineHeight: "1.55"
-  letterSpacing: "-0.005em"
+  # Text hierarchy — snow storm.
+  banner_title: "#88C0D0"    # headings / primary — frost cyan
+  ui_primary: "#88C0D0"
+  banner_text: "#D8DEE9"     # body foreground
+  ui_text: "#D8DEE9"
+  banner_dim: "#81A1C1"      # muted / secondary — nord9, 4.64:1 on nord0 (nord3 fails at 1.69:1)
+  ui_label: "#81A1C1"        # labels — frost blue
 
-layout:
-  radius: "0.5rem"
-  density: comfortable
+  # Brand accent — frost cyan.
+  ui_accent: "#88C0D0"
+  banner_accent: "#88C0D0"
 
-# Semantic component tokens (shadcn-style slots) — aurora roles on nord1 surfaces.
-# Contrast-verified (WCAG 2.1) against the surfaces they render on.
-colorOverrides:
-  card: "#3B4252"
-  cardForeground: "#ECEFF4"   # 8.73:1 on card
-  popover: "#3B4252"
-  popoverForeground: "#ECEFF4"
-  primary: "#88C0D0"
-  primaryForeground: "#2E3440"  # 6.24:1
-  secondary: "#4C566A"
-  secondaryForeground: "#ECEFF4"  # 6.40:1 on secondary
-  muted: "#434C5E"
-  # Status-bar / footer secondary text sits on bg or card — #9AA5B4 was 4.03:1 on
-  # nord1 (AA-large only); #BCCCDC (nord5 tint) is 6.14:1 on nord1 and 7.62:1 on nord0.
-  mutedForeground: "#BCCCDC"
-  accent: "#81A1C1"
-  accentForeground: "#2E3440"
-  destructive: "#BF616A"
-  destructiveForeground: "#ECEFF4"  # 3.55:1 on destructive bg (large/bold text)
-  success: "#A3BE8C"
-  warning: "#EBCB8B"
-  border: "#4C566A"          # decorative hairline: 1.69:1 vs bg, 1.36:1 vs card (below the
-                             # 3:1 non-text guideline; text on the surfaces carries meaning)
-  input: "#434C5E"
-  ring: "#88C0D0"
+  # Borders / rules — nord2.
+  banner_border: "#434C5E"
+  ui_border: "#434C5E"
+  session_border: "#434C5E"
+  input_rule: "#88C0D0"
+  response_border: "#81A1C1"
 
-# The dashboard derives text-secondary (80% midground) and text-tertiary (65%)
-# from `midground` over `background`. With midground #D8DEE9 on #2E3440 that
-# yields 6.55:1 and 4.87:1 — both AA. Lock them explicitly so a midground tweak
-# can't silently drop the status bar below AA.
-componentStyles:
-  page:
-    terminalBackground: "#2E3440"
-    terminalForeground: "#D8DEE9"
-    textSecondary: "#B6BCC7"   # 6.55:1 on background — model/ctx/duration in chat footer
-    textTertiary: "#9CA2AE"    # 4.87:1 on background — dim labels
+  # Tool marker + thinking — aurora purple / teal so they stand apart from accent.
+  ui_tool: "#C9A9CE"         # lightened nord15 — 5.98:1 on nord0 (pure nord15 is 4.41 AA-large)
+  ui_thinking: "#8FBCBB"
 
-# Raw CSS safety net for the chat status strip and any legacy text-muted-foreground
-# call sites that bypass the DS tokens. Also wire the DS text-secondary/tertiary
-# tokens to the locked Nord values: the host maps --color-muted-foreground to
-# var(--color-text-secondary) = var(--text-secondary, <derived 80% mix>), and
-# componentStyles.page.textSecondary lands on --component-page-text-secondary,
-# which nothing reads — so without these lines every muted-foreground element
-# renders the derived mix instead of the locked mutedForeground #BCCCDC.
-#
-# The DS base layer also paints every bare `code` element with
-# background: var(--selection-bg, var(--midground)) — on Nord that is snow-storm
-# #D8DEE9 behind dark text, a full light chip around every inline code span.
-# Scope it to message/chat contexts (where the selection-style chip is wanted)
-# and let `code` elsewhere render transparent. `.text-destructive` is hardcoded
-# to #fb2c36 in the compiled utilities layer; route it through --color-destructive
-# so the theme's nord11 #BF616A actually applies.
-customCSS: |
-  :root {
-    /* For user themes the host derives the shadcn base tokens from the palette
-       LAYERS, and --color-foreground resolves through the foreground layer —
-       which this theme sets to alpha 0 (invisible, the default overlay). Without
-       these pins every var(--color-foreground, …) text renders transparent on the
-       live host (stat values, filter pills, tool names, …). !important is required
-       because ThemeProvider.applyTheme() writes the layer vars as INLINE styles on
-       <html>, and an important author-stylesheet declaration beats a normal inline
-       one. Values follow the midground layer so a midground tweak propagates. */
-    --color-foreground: var(--midground) !important;
-    --selection-bg: var(--midground) !important;
-    --color-muted-foreground: #BCCCDC;
-    --text-secondary: #BCCCDC;   /* == mutedForeground: 7.62:1 on background */
-    --text-tertiary: #BCCCDC;    /* lift dim labels off the 4.87:1 derived value */
-  }
-  .text-muted-foreground, [class*="text-muted-foreground"] {
-    color: #BCCCDC !important;
-  }
-  .text-destructive, [class*="text-destructive"] {
-    color: var(--color-destructive) !important;
-  }
-  /* Inline-code chip only inside the chat tab (data-chat-active="true") and
-     message/prose surfaces; transparent everywhere else. The host base layer
-     paints code in var(--background) (dark under nord), which was only readable
-     on the light chip — so without the chip, inherit the surrounding text color. */
-  code {
-    background: transparent;
-    color: inherit;
-  }
-  [data-chat-active="true"] code,
-  [class*="message"] code,
-  [data-message] code,
-  .prose code {
-    background: var(--selection-bg, var(--midground));
-    color: var(--background);
-  }
+  # Semantic status — aurora green / yellow / red.
+  ui_ok: "#A3BE8C"
+  ui_warn: "#EBCB8B"
+  ui_error: "#D08770"        # nord12 — 4.39:1 on nord0 (nord11 red is only 3.05:1, AA-large)
+
+  # CLI / TUI chrome.
+  prompt: "#ECEFF4"
+  status_bar_bg: "#3B4252"
+  status_bar_text: "#D8DEE9"
+  status_bar_strong: "#88C0D0"
+  status_bar_dim: "#8FBCBB"  # nord7 — 4.83:1 on nord1 bar (nord3 was 1.36:1, unreadable)
+  status_bar_good: "#A3BE8C"
+  status_bar_warn: "#EBCB8B"
+  status_bar_bad: "#D08770"
+  status_bar_critical: "#E5A0AB"  # lightened nord11 — 4.9:1 on bar (pure nord11 is 2.46:1)
+  session_label: "#88C0D0"
+
+  # Completion menu — elevated nord1 surface.
+  completion_menu_bg: "#3B4252"
+  completion_menu_current_bg: "#4C566A"
+  completion_menu_meta_bg: "#2E3440"
+  completion_menu_meta_current_bg: "#434C5E"
+  selection_bg: "#4C566A"    # nord3 as a SELECTION bg is fine (bg, not text); text on it is nord6
+
+  # Syntax highlighting — aurora roles.
+  syntax_string: "#A3BE8C"
+  syntax_number: "#B48EAD"
+  syntax_keyword: "#81A1C1"
+  syntax_comment: "#81A1C1"  # nord9 — 4.64:1 on nord0 (nord3 was 1.69:1, invisible)
+
+  # Diff: line bg = aurora color, word fg = polar night (dark-on-color, like the default skin).
+  # The renderer paints word text ON the line bg, so light-on-light was unreadable (1.44:1).
+  diff_added: "#A3BE8C"
+  diff_removed: "#BF616A"
+  diff_added_word: "#2E3440"    # 6.13:1 on added bg
+  diff_removed_word: "#2E3440"  # 3.05:1 on removed bg (AA-large; bg is mid-luminance)
+
+  shell_dollar: "#81A1C1"
+  voice_status_bg: "#3B4252"
+
+# Light-terminal polarity overlay (snow storm background).
+light_colors:
+  background: "#ECEFF4"
+  banner_title: "#5E81AC"
+  ui_primary: "#5E81AC"
+  banner_accent: "#5E81AC"
+  ui_accent: "#5E81AC"
+  banner_text: "#2E3440"
+  ui_text: "#2E3440"
+  banner_dim: "#4C566A"
+  ui_label: "#4C566A"
+  ui_tool: "#9A7BB0"
+  ui_thinking: "#6B9A98"
+  banner_border: "#D8DEE9"
+  ui_border: "#D8DEE9"
+  session_border: "#D8DEE9"
+  input_rule: "#5E81AC"
+  response_border: "#81A1C1"
+  prompt: "#2E3440"
+  ui_ok: "#5F8F52"
+  ui_warn: "#B08D2E"
+  ui_error: "#A34A55"
+  status_bar_bg: "#E5E9F0"
+  status_bar_text: "#2E3440"
+  status_bar_strong: "#5E81AC"
+  status_bar_dim: "#4C566A"
+  status_bar_good: "#5F8F52"
+  status_bar_warn: "#B08D2E"
+  status_bar_bad: "#C06A4A"
+  status_bar_critical: "#A34A55"
+  session_label: "#5E81AC"
+  completion_menu_bg: "#E5E9F0"
+  completion_menu_current_bg: "#D8DEE9"
+  completion_menu_meta_bg: "#ECEFF4"
+  completion_menu_meta_current_bg: "#D8DEE9"
+  selection_bg: "#D8DEE9"
+  syntax_string: "#5F8F52"
+  syntax_number: "#9A7BB0"
+  syntax_keyword: "#5E81AC"
+  syntax_comment: "#7B8AA0"
+  diff_added: "#C3D9B5"        # lightened nord14 — light bg, dark word fg below (like default skin)
+  diff_removed: "#DCA3AB"      # lightened nord11
+  diff_added_word: "#2E3440"    # polar night on light green bg
+  diff_removed_word: "#2E3440"  # polar night on light red bg
+  shell_dollar: "#5E81AC"
+  voice_status_bg: "#E5E9F0"
+
+branding:
+  agent_name: Hermes Agent
+  prompt_symbol: "❯"
+  help_header: "(^_^)? Available Commands"
+
+tool_prefix: "┊"

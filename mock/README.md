@@ -41,10 +41,14 @@ The banner has a **Theme** select with two kinds of entries:
 
 - `Mock light (zinc) — built-in` — the inline tokens in `index.html` (the original
   mock look); selecting it removes any injected theme overrides.
-- every `mock/*.yaml` — a real Hermes dashboard theme (e.g. `nord.yaml`), compiled
-  by `mock/themes.py` and injected exactly like the host does: `--color-*` tokens
-  from `palette`/`colorOverrides`, `--component-*` from `componentStyles`,
+- every `mock/*.yaml` — a Hermes theme file, compiled by `mock/themes.py` and
+  injected exactly like the host does: `--color-*` tokens from
+  `palette`/`colorOverrides`, `--component-*` from `componentStyles`,
   typography/layout rules, the raw `customCSS` block, and the `fontUrl` `<link>`.
+  (`nord.yaml` in this repo is kept as a reference CLI skin: a `colors:` skin has
+  no `palette`, so it compiles to the layer defaults — black background, white
+  midground, alpha-0 foreground. Pick it to preview that raw host gap, which the
+  tab's `var(--midground, …)` text chains now defend against.)
 
 The choice persists in `localStorage` (`nc-mock-theme`), and `?theme=nord` in the
 URL deep-links a theme (it wins over the saved one), so headless screenshots work:
