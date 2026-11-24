@@ -32,6 +32,12 @@ def register(ctx):
     client.configure(ctx)
     log_level = client.set_log_level()
     disabled = {str(t) for t in (ctx.get_config("disabled_tools", []) or [])}
+    ungated = {str(t) for t in (ctx.get_config("ungated_tools", []) or [])}
+    if "nc_ocs" in ungated:
+        log.warning(
+            "ungated_tools contains 'nc_ocs': the generic OCS escape hatch is exempt "
+            "from the approval gate for ALL methods; prefer per-method entries like 'nc_ocs:GET'"
+        )
     registered = 0
     for module in (
         tools_files,

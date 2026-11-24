@@ -16,7 +16,9 @@ return so no secret leaks into the prompt.
 Settings ``ungated_tools`` exempts the listed nc_* tools from the approve gate:
 for them ``guard`` returns ``None`` (no approval prompt). ``hard_block_destructive``
 still hard-blocks destructive tools in that list. The exemption is per tool, so
-the arg-dispatched tool (``nc_ocs``) is exempted for ALL methods.
+the arg-dispatched tool (``nc_ocs``) is exempted for ALL methods — or per method
+with ``nc_ocs:<METHOD>`` entries (e.g. ``nc_ocs:GET`` exempts only GET calls).
+``register`` logs a WARNING when plain ``nc_ocs`` is listed.
 
 
 The hook NEVER raises (a raise fails closed and would block every tool): on any
@@ -214,7 +216,12 @@ def guard(tool_name="", args=None, **_):
             return None
         summary = client.redact(_describe(name, args))
         settings = client.settings()
-        ungated = name in settings["ungated_tools"]
+        ungated_list = settings["ungated_tools"]
+        ungated = name in ungated_list
+        if not ungated and name == "nc_ocs":
+            # per-method exemption: "nc_ocs:GET" ungates only GET calls
+            method = str((args or {}).get("method") or "GET").upper()
+            ungated = f"nc_ocs:{method}" in ungated_list
         if cls == "destructive":
             if settings["hard_block_destructive"]:
                 log.warning("hard-block destructive %s %s", name, summary)

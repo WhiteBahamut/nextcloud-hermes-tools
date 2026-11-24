@@ -1,3 +1,4 @@
+import logging
 import re
 from pathlib import Path
 
@@ -36,6 +37,19 @@ def test_readme_documents_every_registered_tool(fake_ctx):
     missing = sorted(name for name in fake_ctx.tools if name not in readme)
     assert missing == []  # a new nc_* tool without a README row fails here
     assert not re.search(r"All \d+ tools", readme)  # no hardcoded tool count
+
+
+def test_register_warns_when_plain_nc_ocs_is_ungated(caplog):
+    import conftest
+
+    with caplog.at_level(logging.WARNING, logger="nextcloud_tools"):
+        conftest.make_caller(settings={"ungated_tools": ["nc_ocs"]})
+    assert any("nc_ocs" in r.message and "ALL methods" in r.message for r in caplog.records)
+    # a per-method entry (nc_ocs:GET) must not trigger the warning
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="nextcloud_tools"):
+        conftest.make_caller(settings={"ungated_tools": ["nc_ocs:GET"]})
+    assert not any("nc_ocs" in r.message for r in caplog.records)
 
 
 def test_configured_gating(monkeypatch):

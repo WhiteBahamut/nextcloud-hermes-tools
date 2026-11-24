@@ -101,6 +101,30 @@ def test_guard_ungated_arg_dispatched_tool_covers_all_actions():
         client.configure(FakeCtx())
 
 
+def test_guard_ungated_nc_ocs_per_method_entry():
+    client.configure(FakeCtx({"ungated_tools": ["nc_ocs:GET"]}))
+    try:
+        assert guardrails.guard("nc_ocs", {"method": "GET", "path": "x"}) is None
+        assert guardrails.guard("nc_ocs", {"path": "x"}) is None  # omitted method = GET
+        # other methods stay gated
+        assert guardrails.guard("nc_ocs", {"method": "POST", "path": "x"})["action"] == "approve"
+        d = guardrails.guard("nc_ocs", {"method": "DELETE", "path": "x"})
+        assert d["action"] == "approve" and d["rule_key"] == "nc-destructive"
+        # the per-method entry does not ungate anything else
+        assert guardrails.guard("nc_file_put", {"path": "/a"})["action"] == "approve"
+    finally:
+        client.configure(FakeCtx())
+
+
+def test_guard_hard_block_wins_over_nc_ocs_per_method_ungate():
+    client.configure(FakeCtx({"ungated_tools": ["nc_ocs:DELETE"], "hard_block_destructive": True}))
+    try:
+        d = guardrails.guard("nc_ocs", {"method": "DELETE", "path": "x"})
+        assert d["action"] == "block" and d["rule_key"] == "nc-destructive"
+    finally:
+        client.configure(FakeCtx())
+
+
 def test_guard_wrong_typed_ungated_tools_fails_toward_gate():
     client.configure(FakeCtx({"ungated_tools": "nc_file_put"}))
     try:
