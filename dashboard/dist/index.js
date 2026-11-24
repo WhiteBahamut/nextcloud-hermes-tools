@@ -12,9 +12,11 @@
  *  - hooks: useState/useEffect/useMemo/useToast; utils.cn; SDK.fetchJSON (auth
  *    injecting, throws on !ok, parses JSON) with a native-fetch fallback here.
  *  - theme CSS vars are the --color-* family (+ --radius, --theme-font-mono);
- *    style.css adds unprefixed fallbacks so other hosts still theme, and text
- *    chains fall back to --midground (NOT --foreground, which user themes derive
- *    from the palette foreground layer — alpha 0 = invisible on e.g. nord).
+ *    style.css adds unprefixed fallbacks so other hosts still theme. Text chains
+ *    LEAD with --midground: --color-foreground derives from the palette
+ *    foreground layer, which user themes set to alpha 0 (still defined, so it
+ *    resolves transparent and swallows fallbacks) — --midground is always the
+ *    visible text color; --color-foreground/--foreground remain as fallbacks.
  *
  * Wire contract with dashboard/plugin_api.py (never rename one side only):
  *  GET /api/plugins/nextcloud-tools/tools

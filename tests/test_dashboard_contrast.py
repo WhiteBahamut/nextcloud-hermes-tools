@@ -435,24 +435,40 @@ def test_stat_value_never_carries_status_color() -> None:
         assert color == NORD["--color-foreground"].lower(), f"{mod} stat value color: {color}"
 
 
-def test_foreground_chains_fall_back_to_midground() -> None:
-    """Text chains must fall back to --midground, never --foreground.
+def test_text_chains_survive_alpha0_foreground_layer() -> None:
+    """Text chains must LEAD with --midground, not --color-foreground.
 
-    User themes derive --foreground from the palette foreground layer, which
-    themes like nord set to alpha 0 — so var(--color-foreground, var(--foreground))
-    resolves to invisible text on hosts that never define --color-foreground
-    (the sakura breakage). With both foreground vars absent (the host gap), a
-    text chain must still resolve to the visible --midground.
+    Hermes derives --color-foreground from the palette foreground LAYER, and
+    user themes set that layer to alpha 0 — the var is still *defined*, so
+    var(--color-foreground, var(--midground)) resolves to transparent and never
+    reaches the fallback (the invisible-text bug seen with the nord theme).
+    Simulate the alpha-0 layer by pinning --color-foreground to the background
+    color (invisible) and require every text-bearing surface to stay at AA;
+    also resolve with both foreground vars absent (plain-shadcn host gap).
     """
     css = re.sub(r"/\*.*?\*/", "", CSS_PATH.read_text(encoding="utf-8"), flags=re.S)
-    assert "var(--foreground)" not in css, "a var() chain still falls back to --foreground"
-    assert "var(--color-foreground, var(--midground))" in css
-    tokens = {k: v for k, v in NORD.items() if k not in ("--color-foreground", "--foreground")}
+    assert "var(--midground, var(--color-foreground, var(--foreground)))" in css, (
+        "text chains must lead with --midground"
+    )
+    assert "var(--color-foreground, var(--midground))" not in css, (
+        "--color-foreground must not lead a text chain (it can be the alpha-0 layer)"
+    )
+    gap = dict(NORD)
+    gap["--color-foreground"] = NORD["--color-background"]  # alpha-0 stand-in: invisible
+    for name, chain in TEXT_CASES:
+        fchain = [frozenset(c) for c in chain]
+        color = inherited_prop(RULES, fchain, "color")
+        assert color, f"{name}: no color resolvable on {chain[-1]}"
+        fg = resolve_color(color, gap, CARD)
+        bg = effective_bg(RULES, fchain, NORD, CARD)
+        ratio = contrast_ratio(fg, bg)
+        assert ratio >= AA_TEXT, f"{name}: {ratio:.2f}:1 ({fg} on {bg}) under the alpha-0 foreground layer < {AA_TEXT}:1"
+    # host without layer vars at all: --midground/--color-foreground undefined
+    bare = {k: v for k, v in NORD.items() if k not in ("--midground", "--color-foreground", "--foreground")}
+    bare["--foreground"] = NORD["--color-foreground"]  # plain shadcn host: solid unprefixed token
     chain = [frozenset({"nc-list"}), frozenset({"nc-row"}), frozenset({"nc-name"})]
-    color = inherited_prop(RULES, chain, "color")
-    assert color, "no color resolvable on .nc-name"
-    fg = resolve_color(color, tokens, CARD)
-    assert fg == NORD["--midground"].lower(), f"foreground fallback resolved to {fg}, expected --midground"
+    fg = resolve_color(inherited_prop(RULES, chain, "color"), bare, CARD)
+    assert fg == NORD["--color-foreground"].lower(), f"bare-host fallback resolved to {fg}, expected --foreground"
 
 
 def test_font_size_floor() -> None:
