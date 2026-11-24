@@ -6,8 +6,8 @@ import nextcloud_tools as pkg
 from nextcloud_tools import client
 
 
-def test_registers_54_tools_under_nextcloud_toolset(fake_ctx):
-    assert len(fake_ctx.tools) == 54
+def test_registers_56_tools_under_nextcloud_toolset(fake_ctx):
+    assert len(fake_ctx.tools) == 56
     assert {t["toolset"] for t in fake_ctx.tools.values()} == {"nextcloud"}
     for name, t in fake_ctx.tools.items():
         assert isinstance(t["schema"]["parameters"], dict), name
@@ -24,7 +24,7 @@ def test_registers_pre_and_post_tool_call_hooks(fake_ctx):
 def test_manifest_provides_tools_matches_registered(fake_ctx):
     manifest = (Path(__file__).resolve().parent.parent / "plugin.yaml").read_text()
     provided = set(re.findall(r"^  - (nc_\w+)$", manifest, re.M))
-    assert len(provided) == 54
+    assert len(provided) == 56
     assert provided == set(fake_ctx.tools)
     assert "kind:" not in manifest  # only 5 valid kinds exist; omission = standalone
     for var in ("NC_SERVER_URL", "NC_USER", "NC_APP_PASSWORD"):
@@ -80,16 +80,16 @@ def test_register_is_idempotent_name_set():
     import conftest
 
     _ctx, _call = conftest.make_caller()
-    assert len(_ctx.tools) == 54
+    assert len(_ctx.tools) == 56
     assert pkg.TOOLSET == "nextcloud"
 
 
 def test_disabled_tools_skip_registration():
     import conftest
 
-    # one tool disabled -> 51 registered, that tool absent, hook still registered
+    # one tool disabled -> 55 registered, that tool absent, hook still registered
     ctx, _ = conftest.make_caller(settings={"disabled_tools": ["nc_file_delete"]})
-    assert len(ctx.tools) == 53  # 54 registered minus nc_file_delete
+    assert len(ctx.tools) == 55  # 56 registered minus nc_file_delete
     assert "nc_file_delete" not in ctx.tools
     assert "nc_file_list" in ctx.tools
     assert [h[0] for h in ctx.hooks] == ["pre_tool_call", "post_tool_call"]
@@ -97,12 +97,12 @@ def test_disabled_tools_skip_registration():
 
     # unknown names are ignored silently; non-list/None never raise
     ctx2, _ = conftest.make_caller(settings={"disabled_tools": ["nc_not_a_tool"]})
-    assert len(ctx2.tools) == 54
+    assert len(ctx2.tools) == 56
     ctx3, _ = conftest.make_caller(settings={"disabled_tools": None})
-    assert len(ctx3.tools) == 54
+    assert len(ctx3.tools) == 56
     assert client.settings()["disabled_tools"] == []
 
-    # default (key absent) still registers all 54
+    # default (key absent) still registers all 56
     ctx4, _ = conftest.make_caller()
-    assert len(ctx4.tools) == 54
+    assert len(ctx4.tools) == 56
     assert client.settings()["disabled_tools"] == []

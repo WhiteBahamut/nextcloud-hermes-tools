@@ -48,6 +48,7 @@ All `nc_*` tools live in the `nextcloud` toolset. Every handler returns a JSON s
 | `nc_comment_list` / `nc_comment_add` / `nc_comment_delete` | comments DAV | list read-only; add write-gated; delete destructive; `path` resolved to `oc:fileid` |
 | `nc_ocs` | generic OCS v2 escape hatch | Traversal (`..`, leading `/`) rejected before any request |
 | `nc_file_unlock` | files_lock OCS `DELETE /ocs/v2.php/apps/files_lock/lock/<fileId>` | force-unlock as file owner; verified by PROPFIND `nc:lock` read-back; folders rejected |
+| `nc_file_versions` / `nc_file_version_restore` | versions DAV | list = PROPFIND `/remote.php/dav/versions/<user>/versions/<fileid>/` (each version name = its unix timestamp); restore = MOVE of the version href to `/remote.php/dav/versions/<user>/restore`, verified by sha256 read-back of the live file; `version` traversal rejected before any request |
 | `nc_version` | `GET /status.php` | returns only `version` and `versionstring` from the public flat-JSON status endpoint (no OCS envelope) |
 | `nc_capabilities` | OCS `GET cloud/capabilities` | curated `nc_ocs` wrapper: `apps` = enabled app ids with versions (check deck/forms/collectives/mail first), `capabilities` = full tree |
 | `nc_user_info` | OCS `GET cloud/user` | curated `nc_ocs` wrapper: bot profile (id/displayname/email) + quota {free,used,total,relative} |

@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from urllib.parse import unquote
 from xml.sax.saxutils import escape as xml_escape
 
@@ -359,6 +360,67 @@ def _version(args):
     return client.ok(version=version, versionstring=versionstring if isinstance(versionstring, str) else "")
 
 
+# --- file versions (versions DAV) ---------------------------------------------------
+
+
+def _versions_base() -> str:
+    """'/remote.php/dav/versions/<user>/versions' (per the WebDAV versions doc:
+    PROPFIND .../versions/<fileid>/ lists versions, MOVE of a version href to
+    .../restore restores it)."""
+    return f"{_dav_base()}/versions/{_user()}/versions"
+
+
+def _file_versions(args):
+    path = args.get("path") or ""
+    if not path and not args.get("file_id"):
+        return client.err("give path or file_id")
+    file_id = _resolve_file_id(args)
+    base = f"{_versions_base()}/{file_id}/"
+    resp = client.propfind(base, depth=1, body=PROPFIND_ALL)
+    target = base.rstrip("/")
+    out = []
+    for r in parse_multistatus(resp.text):
+        rhref = unquote(r["href"]).rstrip("/")
+        if rhref == target:
+            continue
+        p = r["props"]
+        size = p.get("getcontentlength") or "0"
+        out.append({
+            "version": rhref.rsplit("/", 1)[-1],  # the timestamp name
+            "size": int(size) if str(size).isdigit() else 0,
+            "mtime": p.get("getlastmodified"),
+        })
+    out.sort(key=lambda v: v["version"], reverse=True)
+    return client.ok(path=path, file_id=file_id, count=len(out), versions=out)
+
+
+def _file_version_restore(args):
+    path = args["path"]
+    version = str(args.get("version") or "")
+    if not version:
+        return client.err("version required (the timestamp name from nc_file_versions)")
+    # enc_path/files_dav reject '.'/'..' segments — validate BOTH args before any
+    # request (the nc_ocs convention), so a malformed call never fires the MOVE
+    version_seg = client.enc_path(version).lstrip("/")
+    live_href = client.files_dav(path)
+    file_id = _resolve_file_id(args)
+    version_href = f"{_versions_base()}/{file_id}/{version_seg}"
+    restore_href = f"{_dav_base()}/versions/{_user()}/restore"
+    version_bytes = client.dav_get(version_href).content
+    digest = hashlib.sha256(version_bytes).hexdigest()
+    resp = client.dav_move(version_href, client.abs_url(restore_href), overwrite=True)
+    if resp.status_code not in (200, 201, 204):
+        raise client.NcError(resp.status_code, client.resp_message(resp))
+    # read-back: the live file must now hold exactly the version's bytes
+    live = client.dav_get(live_href).content
+    if hashlib.sha256(live).hexdigest() != digest:
+        return client.err(
+            f"restore verification failed: live file sha256 != version {version} sha256",
+            path=path, version=version,
+        )
+    return client.ok(path=path, file_id=file_id, version=version, sha256=digest, restored=True, verified=True)
+
+
 def _capabilities(args):
     """GET cloud/capabilities: full tree + a flat {app: version} map for app detection."""
     data = client.ocs("GET", "cloud/capabilities")
@@ -408,4 +470,6 @@ TOOLS = [
     ("nc_version", schemas.NC_VERSION, client.tool(_version)),
     ("nc_capabilities", schemas.NC_CAPABILITIES, client.tool(_capabilities)),
     ("nc_user_info", schemas.NC_USER_INFO, client.tool(_user_info)),
+    ("nc_file_versions", schemas.NC_FILE_VERSIONS, client.tool(_file_versions)),
+    ("nc_file_version_restore", schemas.NC_FILE_VERSION_RESTORE, client.tool(_file_version_restore)),
 ]

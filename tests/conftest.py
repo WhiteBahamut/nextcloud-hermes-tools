@@ -37,6 +37,7 @@ TASKS_DAV = "/remote.php/dav/calendars/bot/tasks"
 BOOK_DAV = "/remote.php/dav/addressbooks/users/bot/contacts"
 NOTES_API = "/index.php/apps/notes/api/v1/notes"
 TRASH_DAV = "/remote.php/dav/trashbin/bot/trash"
+VERSIONS_DAV = "/remote.php/dav/versions/bot/versions"
 
 
 class FakeCtx:

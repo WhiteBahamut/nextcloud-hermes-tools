@@ -190,7 +190,7 @@ def test_register_probes_status_php_once_when_configured(monkeypatch, nc):
     _patch_hermes(monkeypatch, "0.23.0")
     nc.handler = _status("35.0.2.2")
     ctx, _ = conftest.make_caller()
-    assert len(ctx.tools) == 54
+    assert len(ctx.tools) == 56
     assert len(nc.find("GET", "/status.php")) == 1
 
 
@@ -200,5 +200,5 @@ def test_register_without_credentials_makes_no_requests(monkeypatch):
     mock = conftest.patch_get_client(monkeypatch, conftest.MockNc())
     _patch_hermes(monkeypatch, "0.23.0")
     ctx, _ = conftest.make_caller()
-    assert len(ctx.tools) == 54
+    assert len(ctx.tools) == 56
     assert mock.requests == []

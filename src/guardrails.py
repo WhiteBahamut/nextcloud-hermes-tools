@@ -40,7 +40,7 @@ READ_ONLY = frozenset({
     "nc_talk_rooms", "nc_talk_messages", "nc_cal_list", "nc_cal_list_calendars", "nc_task_list",
     "nc_contact_list", "nc_contact_list_books", "nc_contact_search", "nc_contact_get", "nc_note_list",
     "nc_note_get", "nc_activity", "nc_notifications", "nc_tag_list", "nc_trash_list", "nc_comment_list", "nc_version",
-    "nc_capabilities", "nc_user_info",
+    "nc_capabilities", "nc_user_info", "nc_file_versions",
 })
 
 WRITES = frozenset({
@@ -48,7 +48,7 @@ WRITES = frozenset({
     "nc_talk_send", "nc_talk_react", "nc_cal_create", "nc_cal_edit",
     "nc_task_create", "nc_task_complete", "nc_task_reopen", "nc_contact_create", "nc_contact_edit",
     "nc_note_create", "nc_note_edit", "nc_tag_assign", "nc_tag_unassign",
-    "nc_trash_restore", "nc_comment_add", "nc_file_unlock",
+    "nc_trash_restore", "nc_comment_add", "nc_file_unlock", "nc_file_version_restore",
 })
 
 DESTRUCTIVE = frozenset({
@@ -98,6 +98,7 @@ _SUMMARIES = {
     "nc_comment_add": "add comment '{message}' on file {file_target}",
     "nc_comment_delete": "delete comment id {comment_id} on file {file_target}",
     "nc_file_unlock": "force-unlock file '{file_target}' (remove the files_lock lock)",
+    "nc_file_version_restore": "restore version {version} of '{path}' (live file is overwritten with it)",
 }
 
 # Arg-dispatched tool: template chosen via args["method"], exactly like

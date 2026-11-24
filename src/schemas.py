@@ -458,3 +458,20 @@ NC_USER_INFO = _s(
     "Bot account profile + storage quota (OCS GET cloud/user): id, displayname, email, quota {free,used,total,relative} bytes.",
     {},
 )
+NC_FILE_VERSIONS = _s(
+    "List stored versions of a file (versions DAV). Each version's `version` is its unix-timestamp name.",
+    {
+        "path": PATH,
+        "file_id": {"type": "string", "default": "", "description": "Numeric file id; skips the path->oc:fileid PROPFIND."},
+    },
+    ["path"],
+)
+NC_FILE_VERSION_RESTORE = _s(
+    "Restore a file version: the live file is overwritten with that version's content (the server keeps the current state as a new version).",
+    {
+        "path": PATH,
+        "file_id": {"type": "string", "default": "", "description": "Numeric file id; skips the path->oc:fileid PROPFIND."},
+        "version": {"type": "string", "description": "Version timestamp name (from nc_file_versions)."},
+    },
+    ["path", "version"],
+)

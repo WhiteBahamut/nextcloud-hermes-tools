@@ -3,11 +3,11 @@ import pytest
 from nextcloud_tools import dashboard_store, schemas
 
 
-def test_list_tool_names_returns_54_in_manifest_order():
+def test_list_tool_names_returns_56_in_manifest_order():
     names = dashboard_store.list_tool_names()
-    assert len(names) == 54
+    assert len(names) == 56
     assert names[0] == "nc_file_list"
-    assert names[-1] == "nc_user_info"
+    assert names[-1] == "nc_file_version_restore"
     assert all(n.startswith("nc_") for n in names)
 
 
@@ -128,4 +128,4 @@ def test_tool_doc_covers_every_manifest_tool():
         params = doc["parameters"]
         assert isinstance(params, dict) and isinstance(params.get("properties"), dict), name
         checked += 1
-    assert checked == 54  # guard against the sweep silently matching nothing
+    assert checked == 56  # guard against the sweep silently matching nothing

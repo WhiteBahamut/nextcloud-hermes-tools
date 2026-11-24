@@ -1,9 +1,10 @@
-"""Misc handlers: tags, trashbin, comments, activity, file unlock."""
+"""Misc handlers: tags, trashbin, comments, activity, file unlock, file versions."""
 
+import hashlib
 import json
 
 import httpx
-from conftest import FILES_DAV, TRASH_DAV, multistatus, ocs_err, ocs_ok
+from conftest import FILES_DAV, TRASH_DAV, VERSIONS_DAV, multistatus, ocs_err, ocs_ok
 
 
 # --- misc handlers -----------------------------------------------------------------------
@@ -444,3 +445,140 @@ def test_user_info_non_dict_payload_returns_err(nc, call):
     nc.handler = lambda req: ocs_ok(["not", "a", "dict"])
     res = call("nc_user_info", {})
     assert res["ok"] is False
+
+
+# --- file versions (versions DAV) ---------------------------------------------------
+
+
+def test_file_versions_resolves_fileid_then_lists(nc, call):
+    def h(req):
+        p = req.url.path
+        if req.method == "PROPFIND" and p == f"{FILES_DAV}/a.txt":
+            assert req.headers["Depth"] == "0"
+            return multistatus([(p, "<oc:fileid>42</oc:fileid>")])
+        if req.method == "PROPFIND" and p == f"{VERSIONS_DAV}/42/":
+            assert req.headers["Depth"] == "1"
+            return multistatus([
+                (f"{VERSIONS_DAV}/42/", "<d:resourcetype><d:collection/></d:resourcetype>"),
+                (f"{VERSIONS_DAV}/42/1700000001",
+                 "<d:getcontentlength>11</d:getcontentlength>"
+                 "<d:getlastmodified>Wed, 15 Nov 2023 00:00:01 GMT</d:getlastmodified>"),
+                (f"{VERSIONS_DAV}/42/1700000002",
+                 "<d:getcontentlength>22</d:getcontentlength>"
+                 "<d:getlastmodified>Thu, 16 Nov 2023 00:00:02 GMT</d:getlastmodified>"),
+            ])
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_file_versions", {"path": "/a.txt"})
+    assert res["ok"] is True and res["file_id"] == "42" and res["count"] == 2
+    # newest timestamp first; the version name is the last href segment
+    assert [v["version"] for v in res["versions"]] == ["1700000002", "1700000001"]
+    assert res["versions"][0]["size"] == 22 and res["versions"][0]["mtime"].endswith("GMT")
+    assert nc.methods() == ["PROPFIND", "PROPFIND"]
+
+
+def test_file_versions_with_file_id_skips_path_propfind(nc, call):
+    def h(req):
+        assert req.method == "PROPFIND" and req.url.path == f"{VERSIONS_DAV}/42/"
+        return multistatus([(f"{VERSIONS_DAV}/42/1700000001", "<d:getcontentlength>5</d:getcontentlength>")])
+
+    nc.handler = h
+    res = call("nc_file_versions", {"path": "/a.txt", "file_id": "42"})
+    assert res["ok"] is True and res["count"] == 1
+    assert nc.methods() == ["PROPFIND"]
+
+
+def test_file_versions_requires_path_or_file_id(nc, call):
+    nc.handler = lambda req: httpx.Response(404, text="nf")
+    res = call("nc_file_versions", {})
+    assert res["ok"] is False and "path or file_id" in res["error"]
+    assert nc.requests == []
+
+
+def test_file_version_restore_verified_by_readback(nc, call):
+    moved = {}
+
+    def h(req):
+        p = req.url.path
+        if req.method == "PROPFIND" and p == f"{FILES_DAV}/a.txt":
+            return multistatus([(p, "<oc:fileid>42</oc:fileid>")])
+        if req.method == "GET" and p == f"{VERSIONS_DAV}/42/1700000001":
+            return httpx.Response(200, content=b"old-bytes")
+        if req.method == "MOVE" and p == f"{VERSIONS_DAV}/42/1700000001":
+            moved["dest"] = req.headers["Destination"]
+            assert req.headers["Overwrite"] == "T"
+            return httpx.Response(201)
+        if req.method == "GET" and p == f"{FILES_DAV}/a.txt":
+            return httpx.Response(200, content=b"old-bytes")
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_file_version_restore", {"path": "/a.txt", "version": "1700000001"})
+    assert res["ok"] is True and res["restored"] is True and res["verified"] is True
+    assert res["sha256"] == hashlib.sha256(b"old-bytes").hexdigest()
+    assert moved["dest"] == "https://nc.example/remote.php/dav/versions/bot/restore"
+    assert nc.methods() == ["PROPFIND", "GET", "MOVE", "GET"]
+
+
+def test_file_version_restore_readback_mismatch_fails(nc, call):
+    def h(req):
+        p = req.url.path
+        if req.method == "GET" and p.startswith(VERSIONS_DAV):
+            return httpx.Response(200, content=b"old-bytes")
+        if req.method == "MOVE":
+            return httpx.Response(201)
+        if req.method == "GET" and p.startswith(FILES_DAV):
+            return httpx.Response(200, content=b"other-bytes")
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_file_version_restore", {"path": "/a.txt", "file_id": "42", "version": "1700000001"})
+    assert res["ok"] is False and "verification failed" in res["error"]
+    # the MOVE happened; only the read-back caught the mismatch
+    assert nc.find("MOVE", VERSIONS_DAV) and nc.find("GET", FILES_DAV)
+
+
+def test_file_version_restore_requires_version(nc, call):
+    nc.handler = lambda req: httpx.Response(404, text="nf")
+    res = call("nc_file_version_restore", {"path": "/a.txt"})
+    assert res["ok"] is False and "version required" in res["error"]
+    assert nc.requests == []
+
+
+def test_file_version_restore_traversal_version_rejected_before_request(nc, call):
+    nc.handler = lambda req: httpx.Response(404, text="nf")
+    res = call("nc_file_version_restore", {"path": "/a.txt", "file_id": "42", "version": "../evil"})
+    assert res["ok"] is False and "traversal" in res["error"]
+    assert nc.requests == []
+
+
+def test_file_version_restore_traversal_version_rejected_before_fileid_propfind(nc, call):
+    # path-only form: the version must be validated BEFORE the path->oc:fileid PROPFIND
+    nc.handler = lambda req: httpx.Response(404, text="nf")
+    res = call("nc_file_version_restore", {"path": "/a.txt", "version": "../evil"})
+    assert res["ok"] is False and "traversal" in res["error"]
+    assert nc.requests == []
+
+
+def test_file_version_restore_traversal_path_rejected_before_any_request(nc, call):
+    # file_id given, but the path itself traverses: rejected before the MOVE
+    nc.handler = lambda req: httpx.Response(404, text="nf")
+    res = call("nc_file_version_restore", {"path": "../x", "file_id": "42", "version": "1700000001"})
+    assert res["ok"] is False and "traversal" in res["error"]
+    assert nc.requests == []
+
+
+def test_file_version_restore_move_failure_surfaces_as_err(nc, call):
+    def h(req):
+        p = req.url.path
+        if req.method == "GET" and p.startswith(VERSIONS_DAV):
+            return httpx.Response(200, content=b"old-bytes")
+        if req.method == "MOVE":
+            return httpx.Response(403, text="Forbidden")
+        return httpx.Response(404, text="nf")
+
+    nc.handler = h
+    res = call("nc_file_version_restore", {"path": "/a.txt", "file_id": "42", "version": "1700000001"})
+    assert res["ok"] is False and "403" in res["error"]
+    assert nc.find("GET", FILES_DAV) == []  # no read-back after a failed MOVE
