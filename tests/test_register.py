@@ -31,6 +31,13 @@ def test_manifest_provides_tools_matches_registered(fake_ctx):
     assert "- TALK_SERVER_URL" not in manifest  # fallback names stay undeclared
 
 
+def test_readme_documents_every_registered_tool(fake_ctx):
+    readme = (Path(__file__).resolve().parent.parent / "README.md").read_text()
+    missing = sorted(name for name in fake_ctx.tools if name not in readme)
+    assert missing == []  # a new nc_* tool without a README row fails here
+    assert not re.search(r"All \d+ tools", readme)  # no hardcoded tool count
+
+
 def test_configured_gating(monkeypatch):
     for var in client.KNOWN_ENV:
         monkeypatch.delenv(var, raising=False)

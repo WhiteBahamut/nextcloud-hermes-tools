@@ -5,7 +5,7 @@
 
 A native [Hermes Agent](https://github.com/NousResearch/hermes-agent) **directory plugin** that gives the agent first-class **Nextcloud tools** — files, full-text search, shares, Talk rooms, calendar, tasks, contacts, notes, activity and more — as real tool calls with schemas, instead of shelling out to curl.
 
-All 50 tools live in the `nextcloud` toolset. Every handler returns a JSON string and never raises; every write is verified by read-back; a `pre_tool_call` hook gates writes/destructive ops through the approval system.
+All `nc_*` tools live in the `nextcloud` toolset. Every handler returns a JSON string and never raises; every write is verified by read-back; a `pre_tool_call` hook gates writes/destructive ops through the approval system.
 
 ## Table of Contents
 
@@ -33,19 +33,19 @@ All 50 tools live in the `nextcloud` toolset. Every handler returns a JSON strin
 
 | Tool | API | Notes |
 |---|---|---|
-| `nc_file_list` / `nc_file_get` / `nc_file_put` / `nc_file_mkdir` / `nc_file_move` / `nc_file_delete` | WebDAV `/remote.php/dav/files/<user>/` | Server quirks baked in: explicit `Depth`, accept 200 **and** 207 on PROPFIND, URL-encoded paths, MOVE 423 (`files_lock`) → GET bytes → PUT → DELETE fallback, read-back verification after every write, delete verified 404 |
+| `nc_file_list` / `nc_file_get` / `nc_file_put` / `nc_file_mkdir` / `nc_file_move` / `nc_file_copy` / `nc_file_delete` | WebDAV `/remote.php/dav/files/<user>/` | Server quirks baked in: explicit `Depth`, accept 200 **and** 207 on PROPFIND, URL-encoded paths, MOVE 423 (`files_lock`) → GET bytes → PUT → DELETE fallback, read-back verification after every write, delete verified 404 |
 | `nc_search` | OCS `/ocs/v2.php/search/providers/<id>/search` | Cross-app: `files`, `fulltextsearch` (matches **inside** file content), `talk-message`, `calendar`, `tasks`, `contacts`, `notes`, …; a missing provider is a per-provider error, never a failed call |
 | `nc_file_search` | PROPFIND `Depth: infinity` + local filter | Fallback; server-side DAV `SEARCH` is NotImplemented |
-| `nc_share_list` / `nc_share_create` / `nc_share_delete` | OCS files_sharing API | `shareType=0`, `permissions=31`; create verified via GET read-back |
+| `nc_share_list` / `nc_share_create` / `nc_share_edit` / `nc_share_delete` | OCS files_sharing API | `shareType=0`, `permissions=31`; create verified via GET read-back |
 | `nc_talk_rooms` / `nc_talk_messages` / `nc_talk_send` / `nc_talk_delete` / `nc_talk_react` | Talk OCS v4 | DMs filtered (settings `talk_include_dms`, `talk_skip_tokens`), chat always `lookIntoFuture=0`, send verified by chat read-back |
-| `nc_cal_list` / `nc_cal_create` / `nc_cal_edit` / `nc_cal_delete` | CalDAV REPORT time-range + PUT/DELETE `If-Match` | Client-side RRULE expansion (cap 500), all-day `VALUE=DATE`, etags arrive HTML-escaped → unescaped before `If-Match`; shared calendars addressed by DAV dir `<name>_shared_by_<Owner>` |
+| `nc_cal_list` / `nc_cal_list_calendars` / `nc_cal_create` / `nc_cal_edit` / `nc_cal_delete` | CalDAV REPORT time-range + PUT/DELETE `If-Match` | Client-side RRULE expansion (cap 500), all-day `VALUE=DATE`, etags arrive HTML-escaped → unescaped before `If-Match`; shared calendars addressed by DAV dir `<name>_shared_by_<Owner>` |
 | `nc_task_list` / `nc_task_create` / `nc_task_complete` / `nc_task_reopen` | VTODO via CalDAV | `NEEDS-ACTION`/`COMPLETED`; completion sets `STATUS:COMPLETED` + `COMPLETED` timestamp; reopen sets `STATUS:NEEDS-ACTION`, drops `COMPLETED`, `PERCENT-COMPLETE:0`; `nc_task_list` includes completed by default |
-| `nc_contact_list` / `nc_contact_search` / `nc_contact_get` / `nc_contact_create` / `nc_contact_edit` | CardDAV | CDATA stripping, vCard line unfolding, vCard 4.0 writes |
+| `nc_contact_list` / `nc_contact_list_books` / `nc_contact_search` / `nc_contact_get` / `nc_contact_create` / `nc_contact_edit` | CardDAV | CDATA stripping, vCard line unfolding, vCard 4.0 writes |
 | `nc_note_list` / `nc_note_get` / `nc_note_create` / `nc_note_edit` / `nc_note_delete` | `/index.php/apps/notes/api/v1/notes` | OCS path 998s on some servers → verified WebDAV `Notes/` fallback (title ↔ `<title>.txt`) |
 | `nc_activity` / `nc_notifications` | activity / notifications APIs | Bot account's own feed |
 | `nc_tag_list` / `nc_tag_assign` / `nc_tag_unassign` | systemtags DAV | PROPPATCH `oc:systemtags` + verified read-back |
 | `nc_trash_list` / `nc_trash_restore` / `nc_trash_empty` | trashbin DAV | Restore = MOVE to original location with `Overwrite: F` |
-| `nc_comments` | comments DAV | `action=list` read-only; `add` write-gated; `delete` destructive; `path` resolved to `oc:fileid` |
+| `nc_comment_list` / `nc_comment_add` / `nc_comment_delete` | comments DAV | list read-only; add write-gated; delete destructive; `path` resolved to `oc:fileid` |
 | `nc_ocs` | generic OCS v2 escape hatch | Traversal (`..`, leading `/`) rejected before any request |
 | `nc_file_unlock` | files_lock OCS `DELETE /ocs/v2.php/apps/files_lock/lock/<fileId>` | force-unlock as file owner; verified by PROPFIND `nc:lock` read-back; folders rejected |
 | `nc_version` | `GET /status.php` | returns only `version` and `versionstring` from the public flat-JSON status endpoint (no OCS envelope) |
