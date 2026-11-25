@@ -4,6 +4,7 @@ import hashlib
 import json
 
 import httpx
+import pytest
 from conftest import FILES_DAV, TRASH_DAV, VERSIONS_DAV, multistatus, ocs_err, ocs_ok
 
 
@@ -338,17 +339,23 @@ def test_file_unlock_readback_still_locked_fails(nc, call):
     assert res["ok"] is False and "verification failed" in res["error"]
 
 
-def test_file_unlock_nonnumeric_file_id_rejected(nc, call):
-    nc.handler = lambda req: httpx.Response(404, text="nf")
-    res = call("nc_file_unlock", {"path": "/a.txt", "file_id": "12/../../x"})
-    assert res["ok"] is False and "file_id must be numeric" in res["error"]
-    assert nc.requests == []
+# --- argument validation: rejected before any request (no HTTP call is made) ----------
 
-
-def test_file_unlock_traversal_path_rejected_before_request(nc, call):
+@pytest.mark.parametrize("tool,args,err", [
+    ("nc_file_unlock", {"path": "/a.txt", "file_id": "12/../../x"}, "file_id must be numeric"),
+    ("nc_file_unlock", {"path": "/../x"}, "traversal"),
+    ("nc_file_versions", {}, "path or file_id"),
+    ("nc_file_version_restore", {"path": "/a.txt"}, "version required"),
+    ("nc_file_version_restore", {"path": "/a.txt", "file_id": "42", "version": "../evil"}, "traversal"),
+    # path-only form: the version is validated BEFORE the path->oc:fileid PROPFIND
+    ("nc_file_version_restore", {"path": "/a.txt", "version": "../evil"}, "traversal"),
+    # file_id given, but the path itself traverses: rejected before the MOVE
+    ("nc_file_version_restore", {"path": "../x", "file_id": "42", "version": "1700000001"}, "traversal"),
+])
+def test_misc_args_rejected_before_any_request(nc, call, tool, args, err):
     nc.handler = lambda req: httpx.Response(404, text="nf")
-    res = call("nc_file_unlock", {"path": "/../x"})
-    assert res["ok"] is False
+    res = call(tool, args)
+    assert res["ok"] is False and err in res["error"]
     assert nc.requests == []
 
 
@@ -489,13 +496,6 @@ def test_file_versions_with_file_id_skips_path_propfind(nc, call):
     assert nc.methods() == ["PROPFIND"]
 
 
-def test_file_versions_requires_path_or_file_id(nc, call):
-    nc.handler = lambda req: httpx.Response(404, text="nf")
-    res = call("nc_file_versions", {})
-    assert res["ok"] is False and "path or file_id" in res["error"]
-    assert nc.requests == []
-
-
 def test_file_version_restore_verified_by_readback(nc, call):
     moved = {}
 
@@ -537,36 +537,6 @@ def test_file_version_restore_readback_mismatch_fails(nc, call):
     assert res["ok"] is False and "verification failed" in res["error"]
     # the MOVE happened; only the read-back caught the mismatch
     assert nc.find("MOVE", VERSIONS_DAV) and nc.find("GET", FILES_DAV)
-
-
-def test_file_version_restore_requires_version(nc, call):
-    nc.handler = lambda req: httpx.Response(404, text="nf")
-    res = call("nc_file_version_restore", {"path": "/a.txt"})
-    assert res["ok"] is False and "version required" in res["error"]
-    assert nc.requests == []
-
-
-def test_file_version_restore_traversal_version_rejected_before_request(nc, call):
-    nc.handler = lambda req: httpx.Response(404, text="nf")
-    res = call("nc_file_version_restore", {"path": "/a.txt", "file_id": "42", "version": "../evil"})
-    assert res["ok"] is False and "traversal" in res["error"]
-    assert nc.requests == []
-
-
-def test_file_version_restore_traversal_version_rejected_before_fileid_propfind(nc, call):
-    # path-only form: the version must be validated BEFORE the path->oc:fileid PROPFIND
-    nc.handler = lambda req: httpx.Response(404, text="nf")
-    res = call("nc_file_version_restore", {"path": "/a.txt", "version": "../evil"})
-    assert res["ok"] is False and "traversal" in res["error"]
-    assert nc.requests == []
-
-
-def test_file_version_restore_traversal_path_rejected_before_any_request(nc, call):
-    # file_id given, but the path itself traverses: rejected before the MOVE
-    nc.handler = lambda req: httpx.Response(404, text="nf")
-    res = call("nc_file_version_restore", {"path": "../x", "file_id": "42", "version": "1700000001"})
-    assert res["ok"] is False and "traversal" in res["error"]
-    assert nc.requests == []
 
 
 def test_file_version_restore_move_failure_surfaces_as_err(nc, call):

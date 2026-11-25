@@ -4,6 +4,7 @@ from datetime import datetime
 import re
 
 import httpx
+import pytest
 from conftest import CAL_DAV, MockNc, make_caller, multistatus
 from nextcloud_tools import client, tools_cal
 
@@ -378,25 +379,15 @@ def test_cal_create_passes_times_through(nc, call):
     assert not any("DTSTART:20261110T120000Z" in b for b in bodies)
 
 
-def test_cal_create_date_only_without_all_day_rejected(nc, call):
+@pytest.mark.parametrize("args,err", [
+    ({"calendar": "personal", "summary": "X", "start": "2026-11-20", "end": "2026-11-21"}, "all_day"),
+    ({"calendar": "personal", "summary": "X",
+      "start": "2026-11-16T09:00:00Z", "end": "2026-11-16T10:30:00+02:00"}, "offset style"),
+])
+def test_cal_create_rejected_before_any_request(nc, call, args, err):
     nc.handler = lambda req: httpx.Response(500, text="must not be called")
-    res = call("nc_cal_create", {
-        "calendar": "personal", "summary": "X",
-        "start": "2026-11-20", "end": "2026-11-21",
-    })
-    assert res["ok"] is False
-    assert "all_day" in res["error"]
-    assert nc.requests == []
-
-
-def test_cal_create_mixed_offset_styles_rejected(nc, call):
-    nc.handler = lambda req: httpx.Response(500, text="must not be called")
-    res = call("nc_cal_create", {
-        "calendar": "personal", "summary": "X",
-        "start": "2026-11-16T09:00:00Z", "end": "2026-11-16T10:30:00+02:00",
-    })
-    assert res["ok"] is False
-    assert "offset style" in res["error"]
+    res = call("nc_cal_create", args)
+    assert res["ok"] is False and err in res["error"]
     assert nc.requests == []
 
 
@@ -415,35 +406,29 @@ def test_cal_create_consistent_offset_pair_stored_floating(nc, call):
     assert "DTEND:20261116T130000Z" not in body
 
 
-def test_cal_edit_date_only_on_timed_event_rejected(nc, call):
-    uid = "uid-timed"
-    ics = (
-        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:uid-timed\r\nDTSTAMP:20261101T000000Z\r\n"
-        "DTSTART:20261110T140000Z\r\nDTEND:20261110T150000Z\r\nSUMMARY:Timed\r\n"
-        "END:VEVENT\r\nEND:VCALENDAR\r\n"
-    )
+_ICS_TIMED = (
+    "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:uid-timed\r\nDTSTAMP:20261101T000000Z\r\n"
+    "DTSTART:20261110T140000Z\r\nDTEND:20261110T150000Z\r\nSUMMARY:Timed\r\n"
+    "END:VEVENT\r\nEND:VCALENDAR\r\n"
+)
+_ICS_Z = (
+    "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:uid-z\r\nDTSTAMP:20261101T000000Z\r\n"
+    "DTSTART:20261116T090000Z\r\nDTEND:20261116T100000Z\r\nSUMMARY:Z\r\n"
+    "END:VEVENT\r\nEND:VCALENDAR\r\n"
+)
+
+
+@pytest.mark.parametrize("args,ics,err", [
+    ({"calendar": "personal", "uid": "uid-timed", "start": "2026-11-20"}, _ICS_TIMED, "all_day"),
+    ({"calendar": "personal", "uid": "uid-z", "end": "2026-11-16T10:30:00+02:00"}, _ICS_Z, "offset style"),
+])
+def test_cal_edit_rejected_before_put(nc, call, args, ics, err):
     state = {}
-    _edit_handler(nc, state, ics, uid)
-    res = call("nc_cal_edit", {"calendar": "personal", "uid": uid, "start": "2026-11-20"})
-    assert res["ok"] is False
-    assert "all_day" in res["error"]
-    assert nc.find("PUT", "") == []
+    _edit_handler(nc, state, ics, args["uid"])
+    res = call("nc_cal_edit", args)
+    assert res["ok"] is False and err in res["error"]
+    assert nc.find("PUT", "") == []  # rejected before any write
     assert state == {}
-
-
-def test_cal_edit_mixed_new_end_against_z_start_rejected(nc, call):
-    uid = "uid-z"
-    ics = (
-        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:uid-z\r\nDTSTAMP:20261101T000000Z\r\n"
-        "DTSTART:20261116T090000Z\r\nDTEND:20261116T100000Z\r\nSUMMARY:Z\r\n"
-        "END:VEVENT\r\nEND:VCALENDAR\r\n"
-    )
-    state = {}
-    _edit_handler(nc, state, ics, uid)
-    res = call("nc_cal_edit", {"calendar": "personal", "uid": uid, "end": "2026-11-16T10:30:00+02:00"})
-    assert res["ok"] is False
-    assert "offset style" in res["error"]
-    assert nc.find("PUT", "") == []
 
 
 def test_cal_list_defaults_use_config_timezone(monkeypatch):
