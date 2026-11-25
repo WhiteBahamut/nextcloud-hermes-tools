@@ -1,5 +1,7 @@
 from datetime import datetime
 
+import pytest
+
 from nextcloud_tools import ical, tools_cal, vcard
 
 
@@ -40,11 +42,6 @@ def test_build_vtodo_status():
     assert "STATUS:CANCELLED" in text and "COMPLETED:" not in text and "PERCENT-COMPLETE" not in text
     done = ical.build_vtodo(summary="T", status="COMPLETED")
     assert "STATUS:COMPLETED" in done and "PERCENT-COMPLETE:100" in done and "COMPLETED:" in done
-
-
-def test_rrule_unsupported_freq_single_occurrence():
-    occ = ical.expand_rrule(datetime(2026, 1, 1, 9), "FREQ=YEARLY;COUNT=5")
-    assert occ == [datetime(2026, 1, 1, 9)]
 
 
 def test_parse_duration_and_fmt_duration_roundtrip():
@@ -159,34 +156,25 @@ def test_serialize_component_emits_nested_valarm_roundtrip():
 # --- RRULE expansion (ical.expand_rrule) ---
 
 
-def test_rrule_daily_count():
-    occ = ical.expand_rrule(datetime(2026, 11, 2, 9), "FREQ=DAILY;COUNT=3")
-    assert [o.day for o in occ] == [2, 3, 4]
-
-
-def test_rrule_daily_interval():
-    occ = ical.expand_rrule(datetime(2026, 11, 2, 9), "FREQ=DAILY;INTERVAL=2;COUNT=3")
-    assert [o.day for o in occ] == [2, 4, 6]
-
-
-def test_rrule_weekly_byday():
+@pytest.mark.parametrize("start,rrule,kwargs,expected", [
+    # unsupported FREQ falls back to the single DTSTART occurrence
+    (datetime(2026, 1, 1, 9), "FREQ=YEARLY;COUNT=5", {}, [datetime(2026, 1, 1, 9)]),
+    (datetime(2026, 11, 2, 9), "FREQ=DAILY;COUNT=3", {}, [datetime(2026, 11, d, 9) for d in (2, 3, 4)]),
+    (datetime(2026, 11, 2, 9), "FREQ=DAILY;INTERVAL=2;COUNT=3", {}, [datetime(2026, 11, d, 9) for d in (2, 4, 6)]),
     # 2026-11-02 is a Monday
-    occ = ical.expand_rrule(datetime(2026, 11, 2, 9), "FREQ=WEEKLY;BYDAY=MO,WE;COUNT=4")
-    assert [o.strftime("%a") for o in occ] == ["Mon", "Wed", "Mon", "Wed"]
-
-
-def test_rrule_monthly_until_skips_invalid_days():
-    occ = ical.expand_rrule(datetime(2026, 1, 31, 9), "FREQ=MONTHLY;UNTIL=20260430T235959Z")
-    assert [o.date().isoformat() for o in occ] == ["2026-01-31", "2026-03-31"]  # Feb 31 / Apr 31 skipped
-
-
-def test_rrule_exdate_and_range_filter():
-    occ = ical.expand_rrule(
-        datetime(2026, 11, 2, 9), "FREQ=DAILY;COUNT=5",
-        range_start=datetime(2026, 11, 3), range_end=datetime(2026, 11, 5, 23, 59),
-        exdates=[({}, "20261104T090000")],
-    )
-    assert [o.day for o in occ] == [3, 5]  # 4th excluded via EXDATE
+    (datetime(2026, 11, 2, 9), "FREQ=WEEKLY;BYDAY=MO,WE;COUNT=4", {},
+     [datetime(2026, 11, d, 9) for d in (2, 4, 9, 11)]),
+    # Feb 31 / Apr 31 skipped
+    (datetime(2026, 1, 31, 9), "FREQ=MONTHLY;UNTIL=20260430T235959Z", {},
+     [datetime(2026, 1, 31, 9), datetime(2026, 3, 31, 9)]),
+    # 4th excluded via EXDATE, range filter applied
+    (datetime(2026, 11, 2, 9), "FREQ=DAILY;COUNT=5",
+     {"range_start": datetime(2026, 11, 3), "range_end": datetime(2026, 11, 5, 23, 59),
+      "exdates": [({}, "20261104T090000")]},
+     [datetime(2026, 11, 3, 9), datetime(2026, 11, 5, 9)]),
+])
+def test_rrule_expansion(start, rrule, kwargs, expected):
+    assert ical.expand_rrule(start, rrule, **kwargs) == expected
 
 
 def test_rrule_exdate_from_parse_ics():
