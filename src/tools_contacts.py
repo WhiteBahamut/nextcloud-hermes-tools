@@ -31,6 +31,7 @@ def _summarize(card: dict) -> dict:
         "emails": card.get("emails", []),
         "phones": card.get("phones", []),
         "org": card.get("org", ""),
+        "addresses": card.get("addresses") or [],
     }
 
 
@@ -97,15 +98,23 @@ def _create(args):
     if not fn:
         return client.err("fn (full name) required")
     uid = str(uuid.uuid4())
+    addresses = _as_addresses(args.get("address"))
     body = vcard.build_vcard(
         fn=fn, email=args.get("email") or "", phone=args.get("phone") or "",
         org=args.get("org") or "", note=args.get("note") or "", uid=uid,
+        addresses=addresses,
     )
     href = _book_href(book) + uid + ".vcf"
     client.dav_put(href, body.encode("utf-8"), "text/vcard; charset=utf-8")
-    got = client.dav_get(href).text
-    if f"UID:{uid}" not in got:
+    got_text = client.dav_get(href).text
+    if f"UID:{uid}" not in got_text:
         return client.err(f"create verification failed: UID {uid} not in read-back", book=book, uid=uid)
+    got = vcard.parse_vcard(got_text)
+    if got.get("addresses") != addresses:
+        return client.err(
+            f"create verification failed: addresses {got.get('addresses')!r} != {addresses!r}",
+            book=book, uid=uid,
+        )
     return client.ok(book=book, uid=uid, verified=True)
 
 
@@ -116,6 +125,33 @@ def _as_list(v):
     return [v] if isinstance(v, str) else [x for x in v if x]
 
 
+def _as_addresses(v):
+    """''/None/[] -> []; address dict -> [dict]; list -> list of dicts, each normalized
+    (known keys only, non-empty values). Anything else — a non-empty string (the schema
+    allows strings only as the '' clear sentinel), a non-dict entry, a scalar, or an
+    entry with no known keys — raises NcError(400) so it can never silently clear all
+    addresses on edit."""
+    if v is None or v == "" or v == []:
+        return []
+    if isinstance(v, dict):
+        items = [v]
+    elif isinstance(v, (list, tuple)):
+        items = list(v)
+    else:
+        raise client.NcError(400, "address must be an object or a list of objects ('' or [] clears all addresses)")
+    if any(not isinstance(x, dict) for x in items):
+        raise client.NcError(400, "address entries must be objects with keys pobox/extended/street/city/region/postal/country")
+    out = []
+    for x in items:
+        a = vcard.normalize_address(x)
+        if not a:
+            # an entry with no known keys would be dropped and silently clear all
+            # addresses on edit — reject it like the non-empty string case
+            raise client.NcError(400, f"address entry {x!r} has no known keys (pobox/extended/street/city/region/postal/country)")
+        out.append(a)
+    return out
+
+
 def _edit(args):
     book = args.get("book") or "contacts"
     uid = args["uid"]
@@ -124,8 +160,9 @@ def _edit(args):
     phones = _as_list(args["phone"]) if "phone" in args else (card.get("phones") or [])
     org = args.get("org") if "org" in args else card.get("org", "")
     note = args.get("note") if "note" in args else card.get("note", "")
+    addresses = _as_addresses(args["address"]) if "address" in args else (card.get("addresses") or [])
     fn = args.get("fn") or card.get("fn") or ""
-    body = vcard.build_vcard(fn=fn, email=emails, phone=phones, org=org, note=note, uid=uid)
+    body = vcard.build_vcard(fn=fn, email=emails, phone=phones, org=org, note=note, uid=uid, addresses=addresses)
     client.dav_put(href, body.encode("utf-8"), "text/vcard; charset=utf-8", etag=etag)
     got = vcard.parse_vcard(client.dav_get(href).text)
     esc = vcard.esc
@@ -136,6 +173,7 @@ def _edit(args):
         "phones": [esc(p) for p in phones],
         "org": esc(org) if org else "",
         "note": esc(note),
+        "addresses": [dict(a) for a in addresses],
     }
     if "email" not in args:
         expected["emails"] = got.get("emails")  # unchanged field: skip comparison
@@ -145,6 +183,8 @@ def _edit(args):
         expected["org"] = got.get("org", "")
     if "note" not in args:
         expected["note"] = got.get("note", "")
+    if "address" not in args:
+        expected["addresses"] = got.get("addresses")  # unchanged field: skip comparison
     if "fn" not in args or not args.get("fn"):
         expected["fn"] = got.get("fn", "")
     problems = [f"{k}: got {got.get(k)!r} != {v!r}" for k, v in expected.items() if got.get(k) != v]

@@ -171,12 +171,14 @@ def _naive(dt):
 
 
 def esc(text) -> str:
+    # \r is escaped too: a raw CR inside a value would inject a new content line
     return (
         str(text)
         .replace("\\", "\\\\")
         .replace(";", "\\;")
         .replace(",", "\\,")
         .replace("\n", "\\n")
+        .replace("\r", "\\r")
     )
 
 
@@ -196,8 +198,8 @@ def _dt_line(name: str, dt, all_day: bool) -> str:
 
 
 def unesc(text: str) -> str:
-    """Inverse of :func:`esc` — undo ICS text escaping (\\, \\; \\\\ \\n)."""
-    return re.sub(r"\\(.)", lambda m: "\n" if m.group(1) == "n" else m.group(1), str(text))
+    """Inverse of :func:`esc` — undo ICS text escaping (\\, \\; \\\\ \\n \\r)."""
+    return re.sub(r"\\(.)", lambda m: {"n": "\n", "r": "\r"}.get(m.group(1), m.group(1)), str(text))
 
 
 _DURATION_RE = re.compile(

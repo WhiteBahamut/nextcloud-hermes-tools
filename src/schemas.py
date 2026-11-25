@@ -285,8 +285,27 @@ NC_TASK_REOPEN = _s(
 
 # --- contacts ------------------------------------------------------------------
 
+ADDRESS_OBJ = {
+    "type": "object",
+    "properties": {
+        "pobox": {"type": "string", "description": "Post office box."},
+        "extended": {"type": "string", "description": "Extended address (apartment, floor, ...)."},
+        "street": {"type": "string", "description": "Street address."},
+        "city": {"type": "string", "description": "City / locality."},
+        "region": {"type": "string", "description": "State / province / region."},
+        "postal": {"type": "string", "description": "Postal code / ZIP."},
+        "country": {"type": "string", "description": "Country."},
+    },
+}
+ADDRESS = {
+    "type": ["object", "array", "string"],
+    "description": "Postal address(es): one address object (keys pobox/extended/street/city/region/postal/country) or a list of such objects.",
+    "properties": ADDRESS_OBJ["properties"],
+    "items": ADDRESS_OBJ,
+}
+
 NC_CONTACT_LIST = _s(
-    "List contacts of an address book (default 'contacts').",
+    "List contacts of an address book (default 'contacts'); each entry has uid, fn, emails, phones, org and postal addresses.",
     {"book": {**BOOK, "default": "contacts"}, "limit": {"type": "integer", "default": 500, "description": "Max contacts returned."}},
 )
 
@@ -295,17 +314,17 @@ NC_CONTACT_LIST_BOOKS = _s(
     {},
 )
 NC_CONTACT_SEARCH = _s(
-    "Search contacts by name, email or phone (case-insensitive).",
+    "Search contacts by name, email or phone (case-insensitive); results include postal addresses.",
     {"book": {**BOOK, "default": "contacts"}, "term": {"type": "string", "description": "Substring matched against name/email/phone (case-insensitive)."}},
     ["term"],
 )
 NC_CONTACT_GET = _s(
-    "Get one contact by UID.",
+    "Get one contact by UID, including note and postal addresses.",
     {"book": {**BOOK, "default": "contacts"}, "uid": {"type": "string", "description": "Contact UID (from nc_contact_list)."}},
     ["uid"],
 )
 NC_CONTACT_CREATE = _s(
-    "Create a contact with a full name and optional email, phone, org and note.",
+    "Create a contact with a full name and optional email, phone, org, note and postal address.",
     {
         "book": {**BOOK, "default": "contacts"},
         "fn": {"type": "string", "description": "Full name (required by vCard)."},
@@ -313,6 +332,7 @@ NC_CONTACT_CREATE = _s(
         "phone": {"type": "string", "default": "", "description": "Phone number."},
         "org": {"type": "string", "default": "", "description": "Organization."},
         "note": {"type": "string", "default": "", "description": "Free-form note."},
+        "address": {**ADDRESS, "description": "Optional postal address (object or list of objects) stored as ADR."},
     },
     ["fn"],
 )
@@ -326,6 +346,7 @@ NC_CONTACT_EDIT = _s(
         "phone": {"type": ["string", "array"], "items": {"type": "string"}, "default": "", "description": "Phone number or list of numbers; pass '' or [] to clear all. Omit to keep existing."},
         "org": {"type": "string", "default": "", "description": "New organization; '' clears it; omit to keep."},
         "note": {"type": "string", "default": "", "description": "New note; '' clears it; omit to keep."},
+        "address": {**ADDRESS, "description": "Postal address object or list of objects; pass '' or [] to clear all addresses. Omit to keep existing."},
     },
     ["uid"],
 )
